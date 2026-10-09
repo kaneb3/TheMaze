@@ -16,6 +16,7 @@ var _head: Node3D
 var _camera: Camera3D
 var _rig: Node3D
 var _lantern: Node3D
+var _arm: Node3D
 var _light: OmniLight3D
 var _bob := 0.0
 var _sway := Vector2.ZERO
@@ -66,7 +67,18 @@ func _ready() -> void:
 	_light.light_size = 0.06
 	_light.position = _lantern.position + Vector3(0.0, LANTERN_FLAME * LANTERN_SCALE, 0.0)
 	_rig.add_child(_light)
-	LanternLighting.rig(_lantern, _light, Vector3(0.0, LANTERN_FLAME, 0.0))
+	var fill := LanternLighting.rig(_lantern, _light, Vector3(0.0, LANTERN_FLAME, 0.0))
+	fill.omni_range = 1.0  # also lights the glove from below
+	fill.light_energy = 0.45
+
+	# The gloved arm holds the chain at the rig's pivot; the lantern swings beneath the fist.
+	_arm = (load("res://client/assets/ring1/fp_arm.glb") as PackedScene).instantiate()
+	_arm.position = _rig.position
+	_camera.add_child(_arm)
+	for node in _arm.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		mi.layers = LanternLighting.LANTERN_LAYER  # lit by the soft fill, not blasted by the lantern
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	var screenshot_run := false
 	for arg in OS.get_cmdline_user_args():
