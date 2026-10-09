@@ -1,16 +1,19 @@
 shader_type spatial;
-// The dark mass inside the hedge, seen through gaps between leaves (and alone beyond the leaves'
-// range): mottled like deep foliage, never a smooth slab; matte; sky-occluded like the rest.
+// The opaque mass inside the hedge, seen through gaps between the leaf cards (and alone beyond
+// the leaves' range). It is painted with the same scanned leaves, tiled in two offset layers and
+// kept dark, so a gap shows deeper leaves in shadow - never a bare surface. Matte, sky-occluded.
 render_mode diffuse_lambert, specular_disabled;
 
-uniform sampler2D noise_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform sampler2D leaf_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform float tile_m = 0.5;  // metres per atlas repeat (leaves ~4-8 cm, like the cards)
+uniform vec3 deep_color : source_color = vec3(0.012, 0.018, 0.014);
+uniform float leaf_value = 0.32;  // how bright the inner leaves get (they sit in the hedge's shade)
 varying vec3 v_wpos;
+varying vec3 v_wnrm;
 varying float v_sky;
 
-// Analytic sky occlusion in a 7 m deep, 3.4 m wide corridor: a point at height h sees the share
-// 1 - d/sqrt(d^2 + w^2) of the sky (d = 7 - h). Tops see it all. Stands in for GI's sky shadowing.
 uniform float sky_occl_strength = 1.0;
-uniform float sky_floor = 0.15;  // light bounced off the opposite wall never quite lets it reach 0
+uniform float sky_floor = 0.15;
 float sky_visibility(float h, float up) {
 	float d = max(7.0 - h, 0.0);
 	float side = 1.0 - d * inversesqrt(d * d + 3.4 * 3.4);
@@ -19,17 +22,23 @@ float sky_visibility(float h, float up) {
 
 void vertex() {
 	v_wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	v_wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	v_sky = sky_visibility(VERTEX.y, NORMAL.y);
 }
 
+vec4 leaves(vec2 uv) {
+	vec4 a = texture(leaf_albedo, uv);
+	vec4 b = texture(leaf_albedo, uv * 1.37 + vec2(0.31, 0.57));
+	return a.a >= b.a ? a : b;
+}
+
 void fragment() {
-	vec2 p = v_wpos.xz + v_wpos.y * vec2(0.7, -0.4);
-	float n = texture(noise_tex, p * 0.9).r * 0.6 + texture(noise_tex, p * 4.3 + 0.3).r * 0.4;
-	ALBEDO = mix(vec3(0.018, 0.028, 0.022), vec3(0.06, 0.085, 0.06), n);
+	// project from the dominant axis of the surface (walls face X or Z; tops face Y)
+	vec3 an = abs(v_wnrm);
+	vec2 uv = an.y > max(an.x, an.z) ? v_wpos.xz : (an.x > an.z ? v_wpos.zy : v_wpos.xy);
+	vec4 l = leaves(uv / tile_m * vec2(1.0, -1.0));
+	float cover = smoothstep(0.3, 0.7, l.a);
+	ALBEDO = mix(deep_color, l.rgb * leaf_value * vec3(0.75, 0.9, 0.8), cover);
 	ROUGHNESS = 1.0;
-	AO = mix(1.0, v_sky, sky_occl_strength);
-	vec2 e = vec2(0.02, 0.0);
-	float nx = texture(noise_tex, (p + e.xy) * 4.3).r - texture(noise_tex, (p - e.xy) * 4.3).r;
-	float ny = texture(noise_tex, (p + e.yx) * 4.3).r - texture(noise_tex, (p - e.yx) * 4.3).r;
-	NORMAL_MAP = normalize(vec3(nx * 3.0, ny * 3.0, 1.0)) * 0.5 + 0.5;
+	AO = mix(1.0, v_sky, sky_occl_strength) * mix(0.5, 1.0, cover);
 }

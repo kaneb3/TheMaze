@@ -108,7 +108,7 @@ static func _ensure() -> void:
 
 	_shell = ShaderMaterial.new()
 	_shell.shader = load("res://client/world/hedge_shell.gdshader")
-	_shell.set_shader_parameter("noise_tex", macro)
+	_shell.set_shader_parameter("leaf_albedo", load(DIR + "foliage/leaf_albedo.png"))
 
 	_stems = StandardMaterial3D.new()
 	_stems.albedo_color = Color(0.13, 0.09, 0.06)
