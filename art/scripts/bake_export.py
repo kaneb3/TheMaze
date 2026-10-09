@@ -244,6 +244,66 @@ def bake_textures(ob, name, size):
 
 
 # ----------------------------------------------------------------------------------------------
+# morph-target export (e.g. a posed hand with grip variations)
+
+def export_with_morphs(name, obj_name, morphs, size=2048):
+    """Bake and export one deforming object together with morph targets.
+
+    morphs: list of (morph_name, apply_fn, restore_fn). Each apply_fn changes the object's deformation
+    (e.g. a rig pose); the evaluated vertex positions become a shape key. Topology must not change.
+    """
+    window = bpy.context.window
+    prev_scene = window.scene
+    src = bpy.data.objects[obj_name]
+
+    def evaluated_mesh():
+        bpy.context.view_layer.update()
+        dg = bpy.context.evaluated_depsgraph_get()
+        me = bpy.data.meshes.new_from_object(src.evaluated_get(dg), preserve_all_data_layers=True, depsgraph=dg)
+        me.transform(src.matrix_world)
+        return me
+
+    base = evaluated_mesh()
+    shapes = []
+    for morph_name, apply_fn, restore_fn in morphs:
+        apply_fn()
+        me = evaluated_mesh()
+        restore_fn()
+        if len(me.vertices) != len(base.vertices):
+            raise RuntimeError(f"morph {morph_name}: vertex count changed ({len(me.vertices)} vs {len(base.vertices)})")
+        co = np.empty(len(me.vertices) * 3, dtype=np.float32)
+        me.vertices.foreach_get("co", co)
+        shapes.append((morph_name, co))
+        bpy.data.meshes.remove(me)
+    bpy.context.view_layer.update()
+
+    sc = _bake_scene()
+    _clear_scene(sc)
+    window.scene = sc
+    ob = _link(sc, bpy.data.objects.new(name, base))
+    try:
+        mat = bake_textures(ob, name, size)
+        base.materials.clear()
+        base.materials.append(mat)
+        ob.shape_key_add(name="Basis")
+        for morph_name, co in shapes:
+            kb = ob.shape_key_add(name=morph_name)
+            kb.data.foreach_set("co", co)
+        os.makedirs(OUT_DIR, exist_ok=True)
+        path = os.path.join(OUT_DIR, f"{name}.glb")
+        bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', use_selection=False, use_active_scene=True,
+                                  use_visible=False, export_apply=False, export_morph=True, export_morph_normal=True,
+                                  export_yup=True, export_materials='EXPORT', export_image_format='AUTO',
+                                  export_lights=False, export_cameras=False)
+        return {"glb": path, "bytes": os.path.getsize(path), "morphs": [s[0] for s in shapes], "verts": len(base.vertices)}
+    finally:
+        window.scene = prev_scene
+        bpy.data.objects.remove(ob, do_unlink=True)
+        if base.users == 0:
+            bpy.data.meshes.remove(base)
+
+
+# ----------------------------------------------------------------------------------------------
 # public entry point
 
 def export_asset(name, collection, size=1024, special=None, skip=(), extra_objects=None):

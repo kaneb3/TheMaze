@@ -44,6 +44,19 @@ var _pivot_prev := Vector3.ZERO
 var _pivot_vel := Vector3.ZERO
 var _first_frame := true
 
+# Living grip (blend shapes on the hand): >0 squeezes, <0 relaxes.
+var _hand_mesh: MeshInstance3D
+var _squeeze_idx := -1
+var _relax_idx := -1
+var _grip := 0.0
+var _grip_vel := 0.0
+var _still_time := 0.0
+var _regrip_timer := 5.0
+var _regrip_pulse := 0.0
+var _prev_walk := 0.0
+var _forced_grip := INF  # look-dev: --grip=<-1..1> pins the grip for screenshots
+var _rng := RandomNumberGenerator.new()
+
 
 func _ready() -> void:
 	var cap := CapsuleShape3D.new()
@@ -73,8 +86,14 @@ func _ready() -> void:
 	_arm = Node3D.new()
 	_arm.name = "Arm"
 	_hand.add_child(_arm)
-	for part in ["fp_arm", "fp_sleeve"]:
+	for part in ["fp_hand", "fp_gear", "fp_sleeve"]:
 		_arm.add_child((load("res://client/assets/ring1/%s.glb" % part) as PackedScene).instantiate())
+	for node in _arm.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi.mesh.get_blend_shape_count() > 0:
+			_hand_mesh = mi
+			_squeeze_idx = mi.find_blend_shape_by_name("squeeze")
+			_relax_idx = mi.find_blend_shape_by_name("relax")
 
 	_rig = Node3D.new()
 	_rig.name = "LanternRig"
@@ -142,6 +161,8 @@ func _ready() -> void:
 	var screenshot_run := false
 	for arg in OS.get_cmdline_user_args():
 		screenshot_run = screenshot_run or arg.begins_with("--shot=")
+		if arg.begins_with("--grip="):
+			_forced_grip = float(arg.substr(7))
 	if not screenshot_run:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -211,6 +232,36 @@ func _process(delta: float) -> void:
 		_lag.x * 0.5 + sin(_step_phase * 0.5) * 0.04 * _walk_amount)
 
 	_swing_lantern(delta)
+	_animate_grip(delta, ground_speed)
+
+
+## The fingers are never frozen: occasional re-grips, tightening when the lantern swings hard or
+## you start/stop, and a slow relax (index finger lifting) when standing still.
+func _animate_grip(delta: float, ground_speed: float) -> void:
+	if _hand_mesh == null:
+		return
+	_still_time = _still_time + delta if ground_speed < 0.1 else 0.0
+	_regrip_timer -= delta
+	if _regrip_timer <= 0.0:
+		_regrip_pulse = 1.0
+		_regrip_timer = _rng.randf_range(4.0, 10.0)
+	_regrip_pulse = maxf(0.0, _regrip_pulse - delta * 1.8)
+	var pulse := sin(_regrip_pulse * PI) * 0.75  # rises and falls over ~0.55 s
+	var swing_tension := clampf(_swing_vel.length() * 0.35, 0.0, 0.8)
+	var relax := -clampf((_still_time - 2.0) * 0.25, 0.0, 0.6)
+	var start_stop := clampf(absf(_walk_amount - _prev_walk) / maxf(delta, 0.001) * 0.12, 0.0, 0.4)
+	_prev_walk = _walk_amount
+	var target := clampf(relax + swing_tension + pulse + start_stop, -1.0, 1.0)
+	if _forced_grip != INF:
+		target = _forced_grip
+	# critically damped spring so the fingers ease rather than snap
+	var k := 60.0
+	_grip_vel += (k * (target - _grip) - 2.0 * sqrt(k) * _grip_vel) * delta
+	_grip += _grip_vel * delta
+	if _squeeze_idx >= 0:
+		_hand_mesh.set_blend_shape_value(_squeeze_idx, clampf(_grip, 0.0, 1.0))
+	if _relax_idx >= 0:
+		_hand_mesh.set_blend_shape_value(_relax_idx, clampf(-_grip, 0.0, 1.0))
 
 
 ## The lantern hangs world-vertical from the fist and swings as a damped pendulum, driven by the
