@@ -13,7 +13,7 @@ extends CharacterBody3D
 @export_range(0.0, 1.0) var bob_scale := 1.0  # accessibility: head bob and nod
 @export_range(0.0, 1.0) var roll_scale := 1.0  # accessibility: strafe/step roll
 @export_range(0.0, 1.0) var fov_scale := 1.0  # accessibility: sprint FOV kick
-@export var lantern_energy := 2.4
+@export var lantern_energy := 3.2
 
 const EYE_HEIGHT := 1.65
 # Left hand, lower-left of view (Amnesia / Pathologic framing). Values come from the Blender layout in
@@ -147,22 +147,22 @@ func _ready() -> void:
 
 	_light = OmniLight3D.new()
 	_light.name = "LanternLight"
-	_light.light_color = Color(1.0, 0.72, 0.48)  # ~2300 K: warm, but stone still reads grey
+	_light.light_color = LanternLighting.COLD_LIGHT  # cold steel-white (Goblet of Fire maze look)
 	_light.light_energy = lantern_energy
-	_light.omni_range = 11.0
-	_light.omni_attenuation = 1.25
+	_light.omni_range = 9.0
+	_light.omni_attenuation = 1.6  # most of its light stays within 3-4 m; beyond, it's a halo in the fog
 	_light.shadow_enabled = true
 	_light.shadow_bias = 0.04
 	_light.shadow_normal_bias = 1.5
-	_light.light_volumetric_fog_energy = 0.12
-	_light.light_size = 0.06
+	_light.light_volumetric_fog_energy = 0.05  # a soft halo, not a white blob in front of the face
+	_light.light_size = 0.015  # a 1-3 cm flame behind clear glass: nearly hard shadows
 	_light.light_specular = 0.25  # the flame is almost at the eye: full specular makes every surface glisten
 	_light.position = _lantern.position + Vector3(0.0, LANTERN_FLAME * LANTERN_SCALE, 0.0)
 	_rig.add_child(_light)
 	var fill := LanternLighting.rig(_lantern, _light, Vector3(0.0, LANTERN_FLAME, 0.0))
 	fill.omni_range = 1.0  # also lights the glove, hoop and cuff from below
 	fill.light_energy = 0.6
-	fill.light_color = Color(1.0, 0.6, 0.3)
+	fill.light_color = LanternLighting.COLD_LIGHT
 	# The flame hangs ~27 cm below the fist, so the lantern light can warm the glove's underside
 	# directly; the arm just must not cast shadows over the view.
 	for node in _arm.find_children("*", "MeshInstance3D", true, false) + hoop_meshes:
@@ -174,7 +174,7 @@ func _ready() -> void:
 	# the glove's leather, seams and knuckles stay readable without brightening the world.
 	var vm_fill := OmniLight3D.new()
 	vm_fill.name = "ViewmodelFill"
-	vm_fill.light_color = Color(1.0, 0.8, 0.62)
+	vm_fill.light_color = Color(0.72, 0.82, 0.92)
 	vm_fill.light_energy = 0.4
 	vm_fill.omni_range = 0.9
 	vm_fill.light_cull_mask = VIEWMODEL_LAYER

@@ -3,19 +3,20 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://co1ha8h8w64vj"
-path="res://.godot/imported/mark_tally_old_albedo.png-c2696276c53c2d39d42ba522d5f623e1.ctex"
+path.s3tc="res://.godot/imported/mark_tally_old_albedo.png-c2696276c53c2d39d42ba522d5f623e1.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://client/assets/ring1/markings/mark_tally_old_albedo.png"
-dest_files=["res://.godot/imported/mark_tally_old_albedo.png-c2696276c53c2d39d42ba522d5f623e1.ctex"]
+dest_files=["res://.godot/imported/mark_tally_old_albedo.png-c2696276c53c2d39d42ba522d5f623e1.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -23,7 +24,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=false
+mipmaps/generate=true
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""

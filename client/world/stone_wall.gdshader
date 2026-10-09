@@ -6,7 +6,14 @@ shader_type spatial;
 //  - grime and damp rising from the ground, dark leak streaks running down from the hedge
 //  - pale lichen blooms on the block faces
 // Everything is matte (stone 0.85-0.95); only fresh damp streaks get a little sheen.
-render_mode cull_back;
+//
+// Lighting (2026-10-09 research into why close-lit stone read as satin/metallic): Lambert diffuse
+// (Burley brightens rough surfaces at grazing angles), low SPECULAR (its f90 drove a near-mirror
+// Fresnel sheen at grazing angles), a detail normal layer for sub-centimetre grain at arm's length,
+// cavity darkening, and a custom light() that adds the micro-shadowing the shadow map can't
+// resolve: AO-based micro-shadows (Brinck & Maximov 2016) and a short height-field march so each
+// pit and lip casts a tiny shadow away from the lantern.
+render_mode cull_back, diffuse_lambert;
 
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -24,15 +31,26 @@ uniform vec3 grime_color : source_color = vec3(0.16, 0.13, 0.10);
 uniform vec3 leak_color : source_color = vec3(0.10, 0.11, 0.08);
 uniform vec3 lichen_color : source_color = vec3(0.66, 0.68, 0.60);
 uniform float saturation = 0.62;  // the scan is warmer than the brief's grey stone
-uniform float value = 0.8;
+uniform float value = 0.58;  // the reference keeps walls dark even under light
 uniform float moss_amount = 0.55;
 uniform bool box_map = false;  // pillars etc.: tile-scale UVs from local position, picked by face axis
 uniform vec2 tile = vec2(3.04, 3.0);  // metres per texture tile (the photoscan's real size)
 uniform float normal_strength = 0.85;
+uniform float specular_amount = 0.15;
+uniform float ao_direct = 0.25;  // flat AO on direct light (micro-shadowing in light() does the rest)
+uniform float detail_strength = 0.5;  // fine grain from the same scan at ~0.48 m per repeat
+uniform float micro_shadow = 1.0;
+uniform float horizon_depth = 0.02;  // m of relief the height march assumes (art knob)
+uniform float horizon_soft = 0.003;
 
 varying vec3 world_pos;
 varying vec3 local_pos;
 varying float wall_seed;
+varying float v_ao;
+varying vec3 v_t;
+varying vec3 v_b;
+varying vec3 v_n;
+varying float v_dist;
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -112,17 +130,66 @@ void fragment() {
 	float hem = stone_top - 0.6 + 0.25 * (texture(macro_noise, vec2(along * 1.4, 0.9)).r - 0.5);
 	col *= mix(1.0, 0.4, smoothstep(hem, stone_top - 0.05, y));  // ragged contact shade under the hem
 
+	// detail grain at a non-repeating odd scale of the same scan, and cavity darkening
+	vec2 duv = UV * 6.37 + vec2(0.31, 0.77);
+	col *= mix(0.9, 1.1, texture(albedo_tex, duv).g * 1.4);
+	col *= mix(1.0, arm.r, 0.4);
 	ALBEDO = col;
 	float rough = clamp(arm.g * 0.15 + 0.82, 0.0, 1.0);
 	rough = mix(rough, 0.97, moss);
 	rough = mix(rough, 0.6, clamp(leak * 0.7, 0.0, 0.6));  // fresh damp has a faint sheen
 	ROUGHNESS = rough;
 	METALLIC = 0.0;
-	SPECULAR = 0.35;
+	SPECULAR = specular_amount;
 	AO = arm.r * mix(1.0, 0.75, grime);
-	AO_LIGHT_AFFECT = 0.45;
-	vec3 n_stone = texture(normal_tex, UV).rgb;
+	AO_LIGHT_AFFECT = ao_direct;
+	// whiteout blend of the base normal with a fine detail normal (Barré-Brisebois & Hill)
+	vec3 nb = texture(normal_tex, UV).rgb * 2.0 - 1.0;
+	vec3 nd = texture(normal_tex, duv).rgb * 2.0 - 1.0;
+	vec3 n_stone = normalize(vec3(nb.xy + nd.xy * detail_strength, nb.z * nd.z)) * 0.5 + 0.5;
 	vec3 n_moss = texture(moss_normal_tex, UV * 3.0).rgb;
 	NORMAL_MAP = mix(n_stone, n_moss, moss * 0.7);
 	NORMAL_MAP_DEPTH = normal_strength;
+	v_ao = arm.r;
+	v_t = TANGENT;
+	v_b = BINORMAL;
+	v_n = NORMAL;
+	v_dist = length(VERTEX);
+}
+
+
+// Height-field self-shadow: march towards the light across the scan's height map and darken where
+// nearby relief rises above the light ray (tiny cast shadows the shadow map can't see).
+float horizon(vec2 uv, vec3 l) {
+	vec2 dir = normalize(l.xy + 1e-5) * vec2(1.0, -1.0) / tile;
+	float slope = max(l.z, 0.0) / max(length(l.xy), 1e-4);
+	float h0 = textureLod(height_tex, uv, 0.0).r * horizon_depth;
+	float occ = 0.0;
+	for (int i = 1; i <= 8; i++) {
+		float d = float(i * i) * 0.0008;  // 0.8 mm .. 51 mm, denser near the pixel
+		occ = max(occ, (textureLod(height_tex, uv + dir * d, 0.0).r * horizon_depth - h0 - d * slope) / horizon_soft);
+	}
+	return 1.0 - clamp(occ, 0.0, 1.0);
+}
+
+void light() {
+	float ndl = dot(NORMAL, LIGHT);
+	float nl = clamp(ndl, 0.0, 1.0);
+	// micro-shadowing from the cavity AO (Brinck & Maximov 2016; HDRP ComputeMicroShadowing)
+	float ms = mix(1.0, clamp(ndl + 2.0 * v_ao * v_ao - 1.0, 0.0, 1.0), micro_shadow);
+	vec3 lt = vec3(dot(LIGHT, v_t), dot(LIGHT, v_b), dot(LIGHT, v_n));
+	float hz = mix(horizon(UV, lt), 1.0, smoothstep(3.0, 6.0, v_dist));  // only where it can be seen
+	float vis = ATTENUATION * ms * hz;
+	DIFFUSE_LIGHT += nl * vis * LIGHT_COLOR / PI;
+	// GGX specular with the grazing reflectance capped (rough stone shows no Fresnel sheen)
+	vec3 H = normalize(VIEW + LIGHT);
+	float a = ROUGHNESS * ROUGHNESS;
+	float a2 = a * a;
+	float nh = clamp(dot(NORMAL, H), 0.0, 1.0);
+	float nv = clamp(dot(NORMAL, VIEW), 1e-4, 1.0);
+	float D = a2 / (PI * pow(nh * nh * (a2 - 1.0) + 1.0, 2.0));
+	float k = pow(ROUGHNESS + 1.0, 2.0) / 8.0;
+	float Vis = 0.25 / ((nl * (1.0 - k) + k) * (nv * (1.0 - k) + k));
+	float F = 0.02 + 0.13 * pow(1.0 - clamp(dot(LIGHT, H), 0.0, 1.0), 5.0);
+	SPECULAR_LIGHT += D * Vis * F * nl * vis * v_ao * LIGHT_COLOR * SPECULAR_AMOUNT * (specular_amount / 0.15);
 }

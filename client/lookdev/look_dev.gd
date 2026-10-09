@@ -116,9 +116,9 @@ func _hash(a: int, b: int) -> int:
 
 func _build_environment(maze: Dictionary) -> void:
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.015, 0.02, 0.045)
-	sky_mat.sky_horizon_color = Color(0.06, 0.075, 0.12)
-	sky_mat.ground_horizon_color = Color(0.04, 0.05, 0.08)
+	sky_mat.sky_top_color = Color(0.06, 0.1, 0.14)  # overcast steel-blue night (#1A2B3A..#43586E)
+	sky_mat.sky_horizon_color = Color(0.13, 0.19, 0.25)
+	sky_mat.ground_horizon_color = Color(0.05, 0.08, 0.11)
 	sky_mat.ground_bottom_color = Color(0.0, 0.0, 0.0)
 	sky_mat.sun_angle_max = 2.0
 	var sky := Sky.new()
@@ -127,33 +127,74 @@ func _build_environment(maze: Dictionary) -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.55
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.165, 0.26, 0.34)  # #2A4256: dim cold fill, ~3 stops under the key
+	env.ambient_light_energy = 0.22
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
-	env.tonemap_exposure = 1.1
+	env.tonemap_exposure = 1.15
+	# grade: desaturated and cool, a little contrast (shadows stay readable, never crushed)
+	env.adjustment_enabled = true
+	env.adjustment_saturation = 0.72
+	env.adjustment_contrast = 1.1
+	# teal grade (sampled from the film's maze frames): red pulled hard down at every level, a
+	# lifted blue-black floor (never pure black), highlights rolling off to pale steel-blue
+	var ramp := Gradient.new()
+	# per-channel curves (each channel looks up its own value): red bent well below identity,
+	# green slightly, blue near identity, all with a small lifted floor
+	ramp.offsets = PackedFloat32Array([0.0, 0.25, 0.5, 0.75, 1.0])
+	ramp.colors = PackedColorArray([Color(0.006, 0.02, 0.03), Color(0.15, 0.24, 0.27), Color(0.36, 0.48, 0.53),
+		Color(0.6, 0.73, 0.78), Color(0.86, 0.95, 1.0)])
+	var grade := GradientTexture1D.new()
+	grade.gradient = ramp
+	grade.width = 256
+	env.adjustment_color_correction = grade
 	env.ssao_enabled = true
+	env.ssao_radius = 0.5
+	env.ssao_power = 1.6
+	env.ssao_detail = 1.2
+	env.ssao_light_affect = 0.35  # joints occlude the lantern too
+	env.ssao_ao_channel_affect = 1.0
+	# AgX: more contrast and a lower white point for a night scene, so the lantern's hotspot keeps
+	# its texture instead of washing to a pale sheen
+	if "tonemap_agx_contrast" in env:
+		env.set("tonemap_agx_contrast", 1.4)
+		env.set("tonemap_agx_white", 9.0)
 	env.glow_enabled = true
 	env.glow_intensity = 0.45
 	env.glow_bloom = 0.04
 	env.volumetric_fog_enabled = true
-	env.volumetric_fog_density = 0.03
-	env.volumetric_fog_albedo = Color(0.72, 0.77, 0.88)
-	env.volumetric_fog_anisotropy = 0.45
+	# thick, cold, backlit fog: the brightest thing in frame looking towards the moon; things vanish
+	# at ~30-40 m
+	env.volumetric_fog_density = 0.042
+	env.volumetric_fog_albedo = Color(0.66, 0.76, 0.84)  # #A9C2D6
+	env.volumetric_fog_emission = Color(0.043, 0.1, 0.14)  # #0B1A24
+	env.volumetric_fog_emission_energy = 0.5
+	env.volumetric_fog_anisotropy = 0.4
 	env.volumetric_fog_length = 56.0
-	env.volumetric_fog_ambient_inject = 0.35
-	env.volumetric_fog_sky_affect = 0.35
+	env.volumetric_fog_ambient_inject = 0.08  # the moon shafts carry the brightness, not an even veil
+	env.volumetric_fog_sky_affect = 0.2
+	# backstop beyond the volumetric fog's range: distant walls dissolve into the same cold mist
+	# instead of standing out as dark blocks
+	env.fog_enabled = true
+	env.fog_mode = Environment.FOG_MODE_DEPTH
+	env.fog_light_color = Color(0.13, 0.24, 0.31)
+	env.fog_light_energy = 1.0
+	env.fog_depth_begin = 18.0
+	env.fog_depth_end = 42.0
+	env.fog_depth_curve = 1.0
+	env.fog_sky_affect = 0.0
 	get_viewport().positional_shadow_atlas_size = 8192
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 
 	var moon := DirectionalLight3D.new()
-	moon.light_color = Color(0.55, 0.65, 1.0)
-	moon.light_energy = 0.35
+	moon.light_color = Color(0.62, 0.75, 0.87)  # #9EC0DD steel-teal, not lavender
+	moon.light_energy = 0.55
 	moon.light_specular = 0.15  # moonlight on wet leaves read as a glossy sheet
-	moon.light_volumetric_fog_energy = 2.5
+	moon.light_volumetric_fog_energy = 1.2
 	moon.shadow_enabled = true
-	moon.rotation_degrees = Vector3(-30.0, 165.0, 0.0)
+	moon.rotation_degrees = Vector3(-68.0, 165.0, 0.0)  # high: comes down the slot between the walls
 	add_child(moon)
 
 	# Patchy ground mist hugging the floor.
@@ -166,15 +207,15 @@ func _build_environment(maze: Dictionary) -> void:
 	tex.seamless = true
 	tex.noise = noise
 	var fog_mat := FogMaterial.new()
-	fog_mat.density = 0.55
-	fog_mat.albedo = Color(0.75, 0.8, 0.9)
-	fog_mat.height_falloff = 1.8
+	fog_mat.density = 0.3  # ground mist: denser near the floor, blending smoothly into the air above
+	fog_mat.albedo = Color(0.66, 0.76, 0.84)
+	fog_mat.height_falloff = 1.4
 	fog_mat.edge_fade = 0.25
 	fog_mat.density_texture = tex
 	var mist := FogVolume.new()
 	mist.shape = RenderingServer.FOG_VOLUME_SHAPE_BOX
-	mist.size = Vector3(maze.width * CELL + 8.0, 3.0, maze.height * CELL + 8.0)
-	mist.position = Vector3(maze.width * CELL * 0.5, 1.0, maze.height * CELL * 0.5)
+	mist.size = Vector3(maze.width * CELL + 8.0, 6.0, maze.height * CELL + 8.0)  # dense at the floor, fading up
+	mist.position = Vector3(maze.width * CELL * 0.5, 2.5, maze.height * CELL * 0.5)
 	mist.material = fog_mat
 	add_child(mist)
 
@@ -319,7 +360,8 @@ func _place_props(maze: Dictionary) -> void:
 			camp.rotation.y = atan2(float(d.x), float(d.y))
 			add_child(camp)
 			_fix_materials(camp)
-			_add_light(camp, CAMP_FIRE, Color(1.0, 0.5, 0.2), 2.6, 10.0, 0.2)
+			_add_light(camp, CAMP_FIRE, Color(0.7, 0.82, 0.95), 2.2, 9.0, 0.8)
+			LanternLighting.chill(camp)
 			break
 
 	# Lantern posts: every few cells along the route in, against a wall, arm towards the cell centre.
@@ -344,7 +386,7 @@ func _place_props(maze: Dictionary) -> void:
 		lantern.position = POST_HOOK - Vector3(0.0, LANTERN_CHAIN, 0.0)
 		post.add_child(lantern)
 		_fix_materials(lantern)
-		var light := _add_light(post, lantern.position + Vector3(0.0, LANTERN_FLAME, 0.0), Color(1.0, 0.6, 0.32), 1.4, 8.0, 0.25)
+		var light := _add_light(post, lantern.position + Vector3(0.0, LANTERN_FLAME, 0.0), LanternLighting.COLD_LIGHT, 1.3, 8.0, 1.2)
 		LanternLighting.rig(lantern, light, Vector3(0.0, LANTERN_FLAME, 0.0))
 
 

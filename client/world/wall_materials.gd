@@ -11,7 +11,7 @@ extends RefCounted
 
 const FOLIAGE_LOD_M := 11.0
 const STONE_LOD_M := 12.0
-const FOLIAGE_END_M := 26.0  # beyond this the fog leaves only the dark hedge mass
+const FOLIAGE_END_M := 40.0  # beyond this the fog leaves only the dark hedge mass
 const LOD_MARGIN := 1.5
 const DIR := "res://client/assets/ring1/"
 
@@ -89,6 +89,12 @@ static func _ensure() -> void:
 	_stone.set_shader_parameter("leak_tex", load(DIR + "stone/leak_mask.png"))
 	_stone.set_shader_parameter("macro_noise", macro)
 
+	# look-dev: --stoneparam=name:value,name:value overrides stone shader uniforms (A/B tests)
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--stoneparam="):
+			for pair in arg.substr(13).split(","):
+				var kv := pair.split(":")
+				_stone.set_shader_parameter(kv[0], float(kv[1]))
 	_pillar = _stone.duplicate() as ShaderMaterial
 	_pillar.set_shader_parameter("box_map", true)
 	_pillar.set_shader_parameter("stone_top", 7.3)
@@ -100,7 +106,7 @@ static func _ensure() -> void:
 	_leaves.set_shader_parameter("leaf_rough", load(DIR + "foliage/leaf_rough.png"))
 
 	_shell = StandardMaterial3D.new()
-	_shell.albedo_color = Color(0.022, 0.034, 0.016)
+	_shell.albedo_color = Color(0.03, 0.045, 0.035)  # reads as deep foliage, not a dark slab, if it shows
 	_shell.roughness = 1.0
 	_shell.metallic_specular = 0.0  # seen at grazing angles from below; must never sheen
 
