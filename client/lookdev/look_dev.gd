@@ -45,6 +45,7 @@ func _ready() -> void:
 		add_child(ground)
 	else:
 		_build_maze(maze)
+		_bake_floor_wall_distance()
 		_place_props(maze)
 	_spawn_player(maze)
 
@@ -228,13 +229,14 @@ func _build_environment(maze: Dictionary) -> void:
 
 	var moon := DirectionalLight3D.new()
 	moon.light_color = Color(0.62, 0.75, 0.87)  # #9EC0DD steel-teal, not lavender
-	moon.light_energy = 0.5
+	moon.light_energy = 0.4
+	moon.shadow_opacity = 0.85
 	moon.light_specular = 0.15  # moonlight on wet leaves read as a glossy sheet
 	moon.light_volumetric_fog_energy = 2.2
 	moon.shadow_enabled = true
 	# 45 deg: rakes the upper half of the walls and backlights the fog at eye level
 	moon.rotation_degrees = Vector3(-45.0, 150.0, 0.0)
-	moon.light_angular_distance = 1.0
+	moon.light_angular_distance = 6.0  # moonlight through thick mist: soft-edged, diffuse shadows
 	moon.directional_shadow_max_distance = 60.0
 	moon.directional_shadow_blend_splits = true
 	add_child(moon)
@@ -342,6 +344,50 @@ func _build_maze(maze: Dictionary) -> void:
 	ground.material_override = WallMaterials.floor_material()
 	root.add_child(ground)
 	_box(body, Vector3(_w * CELL * 0.5, -0.5, _h * CELL * 0.5), 0.0, Vector3(_w * CELL + 40.0, 1.0, _h * CELL + 40.0))
+
+
+## The floor shader needs to know where the walls actually stand (grime gathers at their bases):
+## a distance field to the nearest wall face, 0.25 m per texel, 0..2 m.
+func _bake_floor_wall_distance() -> void:
+	const PX := 4  # texels per metre
+	var sw := int(_w * CELL) * PX
+	var sh := int(_h * CELL) * PX
+	var far := 999.0
+	var d := PackedFloat32Array()
+	d.resize(sw * sh)
+	d.fill(far)
+	var mark := func(x0: float, z0: float, x1: float, z1: float) -> void:
+		for z in range(maxi(0, int(z0 * PX)), mini(sh, int(ceil(z1 * PX)))):
+			for x in range(maxi(0, int(x0 * PX)), mini(sw, int(ceil(x1 * PX)))):
+				d[z * sw + x] = 0.0
+	for key in _walls:
+		if key.z == 0:  # east edge at x = (x+1)*CELL, spanning z
+			mark.call((key.x + 1) * CELL - 0.31, key.y * CELL, (key.x + 1) * CELL + 0.31, (key.y + 1) * CELL)
+		else:
+			mark.call(key.x * CELL, (key.y + 1) * CELL - 0.31, (key.x + 1) * CELL, (key.y + 1) * CELL + 0.31)
+	# two-pass chamfer distance (in texels)
+	for z in sh:
+		for x in sw:
+			var i := z * sw + x
+			if x > 0: d[i] = minf(d[i], d[i - 1] + 1.0)
+			if z > 0: d[i] = minf(d[i], d[i - sw] + 1.0)
+			if x > 0 and z > 0: d[i] = minf(d[i], d[i - sw - 1] + 1.414)
+			if x < sw - 1 and z > 0: d[i] = minf(d[i], d[i - sw + 1] + 1.414)
+	for z in range(sh - 1, -1, -1):
+		for x in range(sw - 1, -1, -1):
+			var i := z * sw + x
+			if x < sw - 1: d[i] = minf(d[i], d[i + 1] + 1.0)
+			if z < sh - 1: d[i] = minf(d[i], d[i + sw] + 1.0)
+			if x < sw - 1 and z < sh - 1: d[i] = minf(d[i], d[i + sw + 1] + 1.414)
+			if x > 0 and z < sh - 1: d[i] = minf(d[i], d[i + sw - 1] + 1.414)
+	var img := Image.create(sw, sh, false, Image.FORMAT_L8)
+	for z in sh:
+		for x in sw:
+			var m := d[z * sw + x] / PX
+			img.set_pixel(x, z, Color(clampf(m / 2.0, 0.0, 1.0), 0, 0))
+	var mat := WallMaterials.floor_material()
+	mat.set_shader_parameter("wall_dist_tex", ImageTexture.create_from_image(img))
+	mat.set_shader_parameter("maze_size", Vector2(_w * CELL, _h * CELL))
 
 
 ## Occlusion culling: a box inside the wall's core (clear of the stone faces and the foliage, so
