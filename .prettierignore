@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.godot
+*.tscn
+*.import
+*.godot
+project-lantern-spec.md
+shared/golden
+tools/out
+package-lock.json

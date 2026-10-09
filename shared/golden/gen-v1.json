@@ -1,0 +1,310 @@
+{
+  "genVersion": 1,
+  "hash32": [
+    {
+      "input": [],
+      "output": 2628190328
+    },
+    {
+      "input": [
+        0
+      ],
+      "output": 2655524936
+    },
+    {
+      "input": [
+        1
+      ],
+      "output": 1058619876
+    },
+    {
+      "input": [
+        -1
+      ],
+      "output": 747395975
+    },
+    {
+      "input": [
+        1,
+        2,
+        3
+      ],
+      "output": 4177452465
+    },
+    {
+      "input": [
+        4294967295,
+        2147483648,
+        7
+      ],
+      "output": 1647025828
+    },
+    {
+      "input": [
+        42,
+        1380535879
+      ],
+      "output": 1924178464
+    }
+  ],
+  "mulberry32": [
+    {
+      "seed": 0,
+      "outputs": [
+        1144304738,
+        1416247,
+        958946056,
+        627933444,
+        2007157716,
+        2340967985,
+        2642484575,
+        2787370982
+      ]
+    },
+    {
+      "seed": 1,
+      "outputs": [
+        2693262067,
+        11749833,
+        2265367787,
+        4213581821,
+        4159151403,
+        1207330352,
+        2632122864,
+        3095568220
+      ]
+    },
+    {
+      "seed": 42,
+      "outputs": [
+        2581720956,
+        1925393290,
+        3661312704,
+        2876485805,
+        750819978,
+        2261697747,
+        1173505300,
+        2683257857
+      ]
+    },
+    {
+      "seed": 3735928559,
+      "outputs": [
+        4043151706,
+        1147597007,
+        3315858022,
+        1538288752,
+        2042435954,
+        3600176436,
+        484360372,
+        1362401224
+      ]
+    }
+  ],
+  "rings": [
+    {
+      "input": {
+        "worldSeed": 1,
+        "ringIndex": 1,
+        "shape": {
+          "outerHalf": 3,
+          "innerHalf": 1
+        },
+        "params": {
+          "newestBiasPermille": 750,
+          "narrowPermille": 0,
+          "leverPermille": 15,
+          "leverMinTreeDistance": 40,
+          "coarseLeverPermille": 200,
+          "platePermille": 0,
+          "plateMaxDistanceCells": 6,
+          "gateSlotCount": 12,
+          "gateCount": 5
+        },
+        "entranceCount": 4
+      },
+      "output": {
+        "coarse": "c6b506048ed88e79d57ff6ec5a2ead0d80993ec6d13a6aa0e9eb78a5ec19a983",
+        "gateSlots": [
+          205666276,
+          405737596,
+          829787000,
+          1249375437,
+          1509104814,
+          1942958161,
+          2330234834,
+          2697196181,
+          3176451819,
+          3270417290,
+          3638079349,
+          4242667509
+        ],
+        "outerOpenings": [
+          536870912,
+          1610612736,
+          2684354560,
+          3758096384
+        ],
+        "chunks": {
+          "-3,-3": "a7a1446f52a2b0b93985ff33135bfd0e0a5f8da1993ef19475c5893acd132c18",
+          "0,-3": "4ea7d83a0aee0214396a0250e2646a66c85829e883feadb69b94ab9294dc3225",
+          "-1,-2": "7eb34d1cfcaad473a5ff1cceb4b23d1232f0bb2576d94f9b82d55d6eec4dcf20",
+          "2,-2": "5c5efe3df337b19d3fc2b82fb16d91e020a7065de7f9b19e09695790a1ac42b2",
+          "-2,-1": "43c4e9f5ad20f5d9c88a62928f96b22960b6d34dc06b43528a4fb9223661496e",
+          "1,-1": "3095dada76de46278fbfed4aa921952dedcc203fd579fb4b345fa105c5f064d6",
+          "-3,0": "f2c3f45dae05306cacb64876f2dac3192df55e6e7ada7f2fc554b97cc0c42f94",
+          "-1,1": "125a327fbcebf3aae5957135cb04bed90a68564db82c60d5bc53a95e6395e432",
+          "2,1": "053ed80727b65a2cc979ad690ff3dea3b2ea48d4a2c5483ed5874679d588f5a9",
+          "-2,2": "170acbc78cbf03d7ba7530e00a7d45aa3214f6c7909d9048bbfae4ac62439d95",
+          "1,2": "a34720e1cf34cb10ea234dbca48b1ae618543354c03929dc6c50828cb4a69268"
+        },
+        "ring": "d933b4a84f61b5b543217b2c51525fbc7f29695990dcbfb32eee2a1293e2609e"
+      }
+    },
+    {
+      "input": {
+        "worldSeed": 2026,
+        "ringIndex": 2,
+        "shape": {
+          "outerHalf": 4,
+          "innerHalf": 2
+        },
+        "params": {
+          "newestBiasPermille": 750,
+          "narrowPermille": 150,
+          "leverPermille": 15,
+          "leverMinTreeDistance": 40,
+          "coarseLeverPermille": 200,
+          "platePermille": 0,
+          "plateMaxDistanceCells": 6,
+          "gateSlotCount": 12,
+          "gateCount": 5
+        },
+        "prevParams": {
+          "newestBiasPermille": 750,
+          "narrowPermille": 150,
+          "leverPermille": 15,
+          "leverMinTreeDistance": 40,
+          "coarseLeverPermille": 200,
+          "platePermille": 80,
+          "plateMaxDistanceCells": 6,
+          "gateSlotCount": 12,
+          "gateCount": 5
+        }
+      },
+      "output": {
+        "coarse": "a80b8520e3d74c934553d118fdfcd8fdd7fca928778fbff0cc419c20d110375b",
+        "gateSlots": [
+          72881352,
+          455382341,
+          823644513,
+          1301537672,
+          1486784580,
+          2056306006,
+          2233157917,
+          2756276155,
+          3138918183,
+          3430852585,
+          3853810493,
+          4222693503
+        ],
+        "outerOpenings": [
+          206045442,
+          848463530,
+          1495972363,
+          2788360473,
+          3260044261
+        ],
+        "chunks": {
+          "-2,-4": "4ab339d9be06e191aa4dbf721336d83389ecbdbaf6417b2b63f3d07616a3ee94",
+          "1,-4": "b45a2016f58d435ef83404e28b537414e2abd59a4de68e402c7eafd26f2a9e1b",
+          "-3,-3": "ab845de186f413d7d3e5e192e58dda68d9acc2ce0044ad86c510a17d0b014832",
+          "0,-3": "94a7fda864c97c0540d3fed4039890da8269682aaf87786788b72330ac5abef1",
+          "3,-3": "3444104d0416e3977793d132ee6ab895a10d9558984cee42dd523dbd13c00683",
+          "-4,-2": "74e460924b0de4a839116dca89c41f1c81a5faae1c1f537a56be6590ee8ca826",
+          "2,-2": "5d983d6a65a8fe5fc9ded6f29ce347e327b293dbb445fb9a17fc96e8c4023bad",
+          "-3,0": "aaaa4ba4e2bc5201f09331d443615b175a11fee129ed2ae6e4b26502dda16f39",
+          "3,0": "7dcb1868d2f2b40ce82981ccfc92b122b9ba7ee4f2ef7d3a57e279be35c37067",
+          "-4,1": "22142d5d59653fff60ab7f0bc111fd22c7e3a9f981b31967b23031ec853923de",
+          "2,1": "6ce2d3d09b2fff80d4aa80c7f5d957bb8b6bf5a4b609fe8edbe763d5b11e26a0",
+          "-2,2": "90f132b26e1df89a3f213f794853a7787e70955f99aae5f46063d252c07de7bb",
+          "1,2": "729c43df5fe9136a3e8a80e7de98272497ad6c5095818fab9197ab803880ebd4",
+          "-3,3": "13d34429882d73872fbbe5f364cb6a516b079617b6b82ce8ac5e66674e3644b4",
+          "0,3": "4fc7351eb56fee0d0f1c73dce90102cf9dd80a7efb6e7c250732ff95b56d8f84",
+          "3,3": "546ab2cc2d3bf00d742e792225947a898c4056bec4372ac06b6b054ce2ab08f3"
+        },
+        "ring": "4a0541ad5efc844cc62009dbcc41eec023b775ae0c4256c9feeef68c46e13a08"
+      }
+    },
+    {
+      "input": {
+        "worldSeed": 3735928559,
+        "ringIndex": 4,
+        "shape": {
+          "outerHalf": 3,
+          "innerHalf": 1
+        },
+        "params": {
+          "newestBiasPermille": 300,
+          "narrowPermille": 150,
+          "leverPermille": 15,
+          "leverMinTreeDistance": 40,
+          "coarseLeverPermille": 200,
+          "platePermille": 250,
+          "plateMaxDistanceCells": 6,
+          "gateSlotCount": 12,
+          "gateCount": 5
+        },
+        "prevParams": {
+          "newestBiasPermille": 750,
+          "narrowPermille": 150,
+          "leverPermille": 15,
+          "leverMinTreeDistance": 40,
+          "coarseLeverPermille": 200,
+          "platePermille": 80,
+          "plateMaxDistanceCells": 6,
+          "gateSlotCount": 12,
+          "gateCount": 5
+        }
+      },
+      "output": {
+        "coarse": "b3e8cccf2b6e567cb1bfb967747374352232f1b63499b174e4eb3d93b1bc40c2",
+        "gateSlots": [
+          235712699,
+          625884533,
+          787612061,
+          1184188887,
+          1588753229,
+          2005334901,
+          2235084691,
+          2603790680,
+          3025952728,
+          3295803174,
+          3644325702,
+          4019242894
+        ],
+        "outerOpenings": [
+          103790398,
+          997180520,
+          1649184748,
+          2699094368,
+          3435736870
+        ],
+        "chunks": {
+          "-3,-3": "c54f7999178fed18e498cdc89377a05f2c72a91f3a2d3999c8480eafd4675930",
+          "0,-3": "d6bb34a7830e3be21b649b745f84c6281b07684eb235477976f6bb110a0f9b07",
+          "-1,-2": "ff2fa5fc4f6dc92674af9839977f0a9693786426d8445e2a13578e47966d68b7",
+          "2,-2": "2723b353913805a523d6e3061ee50a43c322e1661469c43fb597c0c8033c7cef",
+          "-2,-1": "f61f5d1f81fdfdfcde5478593e4d84dfb5f7b9f0fe115b60c3e17dc278cfe778",
+          "1,-1": "29583744bba7098614fbfc98a5734f19573321943c11d205cc266368a4d5f024",
+          "-3,0": "92d65a9114db2ee09d3293cd822d3f9a56c2760b79f9afcca0037e77575630cf",
+          "-1,1": "c292406ad76d606fd3f8316ab81b8a4b47c7bf018c17ee94862ae859cfba46f7",
+          "2,1": "5df7e4db940978d1387f4d6c2881d367485cb1eb84f166a6aba2b0f8bf00d35a",
+          "-2,2": "620f8b17aef54d2468bd252c94a420fbe53195fc8bb9fc2fdea9a22f56b8b2a7",
+          "1,2": "2d5b591ffb0a95c8a76b452c2d51f86352c09c872190bb09167202b43204de1e"
+        },
+        "ring": "ab3bc4943452233a90bb13665c0fefc406a8a220e79f33b51f9e669d0c5f516d"
+      }
+    }
+  ]
+}

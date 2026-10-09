@@ -1,0 +1,21 @@
+{
+  "name": "@lantern/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./maze": "./src/maze/index.ts",
+    "./config": "./src/config/game.ts"
+  },
+  "scripts": {
+    "migrate": "tsx src/db/migrate-cli.ts"
+  },
+  "dependencies": {
+    "pino": "^10.4.0",
+    "postgres": "^3.4.9",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8"
+  }
+}

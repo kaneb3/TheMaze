@@ -1,0 +1,11 @@
+{
+  "name": "@lantern/tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render-ring": "tsx src/render-ring.ts",
+    "ascii-chunk": "tsx src/ascii-chunk.ts",
+    "golden:update": "tsx src/golden-update.ts"
+  }
+}
