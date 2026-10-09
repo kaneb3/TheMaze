@@ -895,7 +895,7 @@ Stop and report at the end of each S-milestone.
 5. **Price point** and whether there's any monetisation beyond purchase (default: one-off purchase, no microtransactions).
 6. **After ignition:** the illuminated world stays explorable by default. How long does it stay up, and does Season 2 (a new seed, perhaps the maze on the horizon) follow?
 7. **Entrances:** 4 by default; is that right for the community feel?
-8. **Player avatars & identity:** how do other players look; are names shown above heads?
+8. **Player avatars & identity:** *Look decided (2026-10-09):* **Hooded Lamplighters**: long weathered oilskin coats, deep hoods, faces wrapped in scarves (only a glint of eyes), leather gauntlets, and a brass oil canister on the back that visibly shows pack fill. Anonymous, eerie, strong silhouette in fog; customisable via coat colour, scarf pattern and trim. Still open: are names shown above heads?
 9. **Moderation resourcing** for text content (notes, signposts, district names).
 10. **Sprint:** none by default; confirm.
 11. **Tutorial:** hand-authored antechamber (default) or skipped?
