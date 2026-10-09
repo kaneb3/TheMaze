@@ -21,7 +21,8 @@
     "migrate": "npm run migrate -w server",
     "render-ring": "npm run render-ring -w tools --",
     "ascii-chunk": "npm run ascii-chunk -w tools --",
-    "golden:update": "npm run golden:update -w tools"
+    "golden:update": "npm run golden:update -w tools",
+    "export-lookdev": "npm run export-lookdev -w tools --"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

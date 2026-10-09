@@ -6,6 +6,7 @@
   "scripts": {
     "render-ring": "tsx src/render-ring.ts",
     "ascii-chunk": "tsx src/ascii-chunk.ts",
-    "golden:update": "tsx src/golden-update.ts"
+    "golden:update": "tsx src/golden-update.ts",
+    "export-lookdev": "tsx src/export-lookdev.ts"
   }
 }

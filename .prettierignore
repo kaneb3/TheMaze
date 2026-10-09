@@ -9,3 +9,4 @@ project-lantern-spec.md
 shared/golden
 tools/out
 package-lock.json
+client/lookdev/maze_sample.json
