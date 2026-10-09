@@ -339,4 +339,4 @@ func _spawn_player(maze: Dictionary) -> void:
 	add_child(player)
 	if _args.has("pitch"):
 		player.get_node("Head").rotation.x = deg_to_rad(float(_args["pitch"]))
-	_flickers.append([player.get_node("Head/Camera3D/LanternRig/LanternLight"), player.lantern_energy, 3.0])
+	_flickers.append([player.get_node("Head/Camera3D/Hand/LanternRig/LanternLight"), player.lantern_energy, 3.0])

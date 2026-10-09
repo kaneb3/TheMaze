@@ -3,22 +3,23 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://brruvrajy4r2t"
-path="res://.godot/imported/fp_arm_fp_arm_orm.png-fa812cea0d1dc52ab3647fe113abd833.ctex"
+path.s3tc="res://.godot/imported/fp_arm_fp_arm_orm.png-fa812cea0d1dc52ab3647fe113abd833.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
-"md5": "ff53324f7286de4a007111c04db06226"
+"md5": "d6cbc34bf5fbe29e0e86bf3515c0763e"
 }
 
 [deps]
 
 source_file="res://client/assets/ring1/fp_arm_fp_arm_orm.png"
-dest_files=["res://.godot/imported/fp_arm_fp_arm_orm.png-fa812cea0d1dc52ab3647fe113abd833.ctex"]
+dest_files=["res://.godot/imported/fp_arm_fp_arm_orm.png-fa812cea0d1dc52ab3647fe113abd833.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
