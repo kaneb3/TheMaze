@@ -1,7 +1,7 @@
 extends Node3D
 ## Look-dev scene: walk a real 12x12 patch of the vertical-slice Ring 1 in fog, to settle the
 ## art direction (spec §16.0) before the gameplay milestones. Open this scene and press F6.
-##   WASD walk · mouse look · Shift fast-walk (look-dev only; the game has no sprint) · F lantern · Esc frees the mouse
+##   WASD walk · mouse look · Shift fast-walk (look-dev only; the game has no sprint) · F lantern · F11 fullscreen · Esc frees the mouse
 ## Look-dev only: the real client never builds maze geometry itself (spec §0.6).
 ##
 ## Optional: `-- --shot=<path.png>` saves a screenshot after a few seconds and quits.
@@ -33,12 +33,26 @@ func _ready() -> void:
 		if arg.begins_with("--") and "=" in arg:
 			_args[arg.substr(2, arg.find("=") - 2)] = arg.substr(arg.find("=") + 1)
 	_shot_path = _args.get("shot", "")
+	if _shot_path == "":
+		# Play maximised rather than in Godot's small default window; F11 toggles fullscreen.
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED)
 	_noise.frequency = 1.0
 	var maze := _load_maze()
 	_build_environment(maze)
-	_build_maze(maze)
-	_place_props(maze)
+	if _args.has("nomaze"):
+		var ground := StaticBody3D.new()
+		_box(ground, Vector3(0, -0.5, 0), 0.0, Vector3(400, 1, 400))
+		add_child(ground)
+	else:
+		_build_maze(maze)
+		_place_props(maze)
 	_spawn_player(maze)
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_F11:
+		var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED if full else DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
 
 
 func _process(delta: float) -> void:
@@ -48,7 +62,8 @@ func _process(delta: float) -> void:
 		light.light_energy = f[1] * (1.0 + 0.10 * _noise.get_noise_1d(_time * 7.0 + f[2]) + 0.04 * _noise.get_noise_1d(_time * 23.0 + f[2]))
 	if _shot_path != "":
 		_shot_frames += 1
-		if _shot_frames == 180:
+		var shot_at := float(_args.get("shot_at", "-1"))
+		if (shot_at < 0.0 and _shot_frames == 180) or (shot_at >= 0.0 and _time >= shot_at):
 			get_viewport().get_texture().get_image().save_png(_shot_path)
 			get_tree().quit()
 

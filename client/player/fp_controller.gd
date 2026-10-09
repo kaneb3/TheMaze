@@ -2,9 +2,8 @@ extends CharacterBody3D
 ## First-person controller with a hand-held lantern (look-dev version; the real one gets server
 ## prediction/reconciliation in S3). WASD + mouse, F toggles the lantern, Esc frees the mouse.
 ##
-## The arm is animated procedurally so it never feels static: it trails the view when you turn,
-## bobs in a figure-of-eight as you walk, breathes when idle, and the lantern hangs world-vertical
-## from the fist as a damped pendulum driven by how the hand actually moves.
+## Motion is a weighty physical model (LanternMotion): an inertial arm carrying a hand-damped
+## pendulum, with a real stride cadence and a braced run pose. See lantern_motion.gd.
 
 @export var walk_speed := 2.5  # spec §7 walkSpeed
 @export var debug_fast_multiplier := 2.5  # Shift, look-dev only (the game has no sprint)
@@ -21,9 +20,8 @@ const LANTERN_FLAME := 0.098
 const RING_RADIUS := 0.045
 const RING_NORMAL := Vector3(0.3388, 0.0, 0.9409)  # ring plane faces mostly towards the eye
 const VIEWMODEL_LAYER := 1 << 2  # render layer 3: lit by the viewmodel fill only
-const PENDULUM_LENGTH := 0.30  # pivot to the lantern's centre of mass
-const PENDULUM_DAMPING := 1.8
-const PENDULUM_LIMIT := 0.7
+const ACCEL := 4.5  # m/s^2: start/stop ramps (people accelerate ~1-4 m/s^2; instant changes kick the lantern)
+const SUBSTEP := 1.0 / 240.0
 
 var _head: Node3D
 var _camera: Camera3D
@@ -34,15 +32,9 @@ var _arm: Node3D
 var _light: OmniLight3D
 
 var _time := 0.0
-var _step_phase := 0.0
-var _walk_amount := 0.0
-var _look_accum := Vector2.ZERO
-var _lag := Vector2.ZERO
-var _swing := Vector2.ZERO  # x: forward/back (about local X), y: sideways (about local Z)
-var _swing_vel := Vector2.ZERO
-var _pivot_prev := Vector3.ZERO
-var _pivot_vel := Vector3.ZERO
-var _first_frame := true
+var _look_accum := Vector2.ZERO  # mouse pixels since the last frame
+var _motion: LanternMotion
+var _sub_accum := 0.0
 
 # Living grip (blend shapes on the hand): >0 squeezes, <0 relaxes.
 var _hand_mesh: MeshInstance3D
@@ -55,6 +47,11 @@ var _regrip_timer := 5.0
 var _regrip_pulse := 0.0
 var _prev_walk := 0.0
 var _forced_grip := INF  # look-dev: --grip=<-1..1> pins the grip for screenshots
+var _autopilot := false  # look-dev: --autopilot runs a fixed walk/stop/turn/sprint sequence
+var _log_path := ""      # look-dev: --log=<csv> records the lantern swing per frame
+var _log: PackedStringArray = []
+var _auto_t := 0.0
+var _auto_yaw_done := 0.0
 var _rng := RandomNumberGenerator.new()
 
 
@@ -82,6 +79,7 @@ func _ready() -> void:
 	_hand.name = "Hand"
 	_hand.position = HAND_POS
 	_camera.add_child(_hand)
+	_motion = LanternMotion.new(HAND_POS)
 
 	_arm = Node3D.new()
 	_arm.name = "Arm"
@@ -163,6 +161,10 @@ func _ready() -> void:
 		screenshot_run = screenshot_run or arg.begins_with("--shot=")
 		if arg.begins_with("--grip="):
 			_forced_grip = float(arg.substr(7))
+		if arg == "--autopilot":
+			_autopilot = true
+		if arg.begins_with("--log="):
+			_log_path = arg.substr(6)
 	if not screenshot_run:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -192,47 +194,74 @@ func _physics_process(delta: float) -> void:
 	if Input.is_physical_key_pressed(KEY_S): input.y += 1.0
 	if Input.is_physical_key_pressed(KEY_A): input.x -= 1.0
 	if Input.is_physical_key_pressed(KEY_D): input.x += 1.0
-	var speed := walk_speed * (debug_fast_multiplier if Input.is_physical_key_pressed(KEY_SHIFT) else 1.0)
+	var fast := Input.is_physical_key_pressed(KEY_SHIFT)
+	if _autopilot:
+		var a := _autopilot_step(delta)
+		input = a[0]
+		fast = a[1]
+	var speed := walk_speed * (debug_fast_multiplier if fast else 1.0)
 	var dir := (transform.basis * Vector3(input.x, 0.0, input.y)).normalized()
-	velocity.x = dir.x * speed
-	velocity.z = dir.z * speed
+	var planar := Vector2(velocity.x, velocity.z).move_toward(Vector2(dir.x, dir.z) * speed, ACCEL * delta)
+	velocity.x = planar.x
+	velocity.z = planar.y
 	if not is_on_floor():
 		velocity.y -= 9.8 * delta
 	move_and_slide()
 
 
 func _process(delta: float) -> void:
-	delta = minf(delta, 0.05)
+	delta = minf(delta, 0.1)
 	_time += delta
-	var ground_speed := Vector2(velocity.x, velocity.z).length()
-
-	# Walking: steps advance with distance; the amount eases in and out.
-	_walk_amount = lerpf(_walk_amount, clampf(ground_speed / walk_speed, 0.0, 1.6), 1.0 - exp(-8.0 * delta))
-	_step_phase += delta * ground_speed * 2.4
-	var step := sin(_step_phase)
-	_head.position.y = EYE_HEIGHT + absf(step) * 0.03 * _walk_amount - 0.015 * _walk_amount
-
-	# Turning: the hand trails the view a little, then catches up.
-	var look_rate := _look_accum / maxf(delta, 0.001)
+	# view rotation rate this frame (rad/s, positive yaw = turning left)
+	var look_rate := Vector2(-_look_accum.x, -_look_accum.y) * mouse_sensitivity / maxf(delta, 0.001)
 	_look_accum = Vector2.ZERO
-	var lag_target := (-look_rate * 0.000045).limit_length(0.09)
-	_lag = _lag.lerp(lag_target, 1.0 - exp(-9.0 * delta))
+	_sub_accum += delta
+	while _sub_accum >= SUBSTEP:
+		_sub_accum -= SUBSTEP
+		_motion.step(SUBSTEP, velocity, _camera.global_basis, global_rotation.y, look_rate)
 
-	# Idle breathing, always present but subtle.
-	var breathe := sin(_time * 1.35)
-	var drift := Vector2(sin(_time * 0.53), sin(_time * 0.71 + 1.3))
+	_head.position.y = EYE_HEIGHT + _motion.head_bob
+	_hand.position = HAND_POS + _motion.hand_offset
+	_hand.rotation = _motion.hand_rotation
+	var yaw_basis := Basis(Vector3.UP, global_rotation.y)
+	_rig.global_basis = yaw_basis * Basis(Vector3.UP, _motion.twist) * Basis.from_euler(Vector3(_motion.swing.x, 0.0, _motion.swing.y))
+	_lantern.position.y = LANTERN_HANG - _motion.stretch
+	_light.position.y = _lantern.position.y + LANTERN_FLAME * LANTERN_SCALE
 
-	_hand.position = HAND_POS + Vector3(
-		sin(_step_phase * 0.5) * 0.016 * _walk_amount + _lag.x * 0.35 + drift.x * 0.003,
-		-absf(sin(_step_phase * 0.5)) * 0.014 * _walk_amount + _lag.y * 0.25 + breathe * 0.004,
-		0.012 * _walk_amount)
-	_hand.rotation = Vector3(
-		_lag.y * 0.9 + breathe * 0.012 + step * 0.015 * _walk_amount,
-		_lag.x * 1.1 + drift.y * 0.01,
-		_lag.x * 0.5 + sin(_step_phase * 0.5) * 0.04 * _walk_amount)
+	_animate_grip(delta, Vector2(velocity.x, velocity.z).length())
+	if _log_path != "":
+		_log.append("%.3f,%.3f,%.2f,%.2f,%.4f,%.4f" % [_time, Vector2(velocity.x, velocity.z).length(), rad_to_deg(_motion.swing.x),
+			rad_to_deg(_motion.swing.y), _hand.position.x - HAND_POS.x, _hand.position.y - HAND_POS.y])
 
-	_swing_lantern(delta)
-	_animate_grip(delta, ground_speed)
+
+## Look-dev autopilot: idle 1 s, walk 3 s, stop 2 s, quick 90 deg turn, idle 2 s, sprint 3 s, stop 3 s.
+func _autopilot_step(delta: float) -> Array:
+	_auto_t += delta
+	var t := _auto_t
+	var input := Vector2.ZERO
+	var fast := false
+	if t > 1.0 and t < 4.0: input.y = -1.0
+	if t >= 6.0 and t < 6.4:
+		var step := deg_to_rad(90.0) * delta / 0.4
+		rotate_y(-step)
+		_look_accum.x += step / mouse_sensitivity
+	if t >= 8.4 and t < 11.4:
+		input.y = -1.0
+		fast = true
+	if t >= 14.4 and t < 17.4:
+		# hand-held mouse look: irregular small sweeps with jitter, like a player scanning a corridor
+		var rate := sin(t * 2.3) * 2.2 + sin(t * 7.1) * 0.9 + (_rng.randf() - 0.5) * 3.0  # rad/s
+		var step := rate * delta
+		rotate_y(-step)
+		_look_accum.x += step / mouse_sensitivity
+	if t >= 19.4 and _log_path != "":
+		var f := FileAccess.open(_log_path, FileAccess.WRITE)
+		f.store_line("t,speed,swing_fwd_deg,swing_side_deg,hand_dx,hand_dy")
+		for line in _log: f.store_line(line)
+		f.close()
+		_log_path = ""
+		get_tree().quit()
+	return [input, fast]
 
 
 ## The fingers are never frozen: occasional re-grips, tightening when the lantern swings hard or
@@ -247,10 +276,10 @@ func _animate_grip(delta: float, ground_speed: float) -> void:
 		_regrip_timer = _rng.randf_range(4.0, 10.0)
 	_regrip_pulse = maxf(0.0, _regrip_pulse - delta * 1.8)
 	var pulse := sin(_regrip_pulse * PI) * 0.75  # rises and falls over ~0.55 s
-	var swing_tension := clampf(_swing_vel.length() * 0.35, 0.0, 0.8)
+	var swing_tension := clampf(_motion.swing_velocity.length() * 0.6, 0.0, 0.8)
 	var relax := -clampf((_still_time - 2.0) * 0.25, 0.0, 0.6)
-	var start_stop := clampf(absf(_walk_amount - _prev_walk) / maxf(delta, 0.001) * 0.12, 0.0, 0.4)
-	_prev_walk = _walk_amount
+	var start_stop := clampf(absf(_motion.move_amount - _prev_walk) / maxf(delta, 0.001) * 0.12, 0.0, 0.4)
+	_prev_walk = _motion.move_amount
 	var target := clampf(relax + swing_tension + pulse + start_stop, -1.0, 1.0)
 	if _forced_grip != INF:
 		target = _forced_grip
@@ -262,26 +291,3 @@ func _animate_grip(delta: float, ground_speed: float) -> void:
 		_hand_mesh.set_blend_shape_value(_squeeze_idx, clampf(_grip, 0.0, 1.0))
 	if _relax_idx >= 0:
 		_hand_mesh.set_blend_shape_value(_relax_idx, clampf(-_grip, 0.0, 1.0))
-
-
-## The lantern hangs world-vertical from the fist and swings as a damped pendulum, driven by the
-## fist's real acceleration (walking, stopping, turning, bobbing all feed it).
-func _swing_lantern(delta: float) -> void:
-	var pivot := _hand.global_position
-	if _first_frame:
-		_pivot_prev = pivot
-		_first_frame = false
-	var vel := (pivot - _pivot_prev) / delta
-	var accel := (vel - _pivot_vel) / delta
-	_pivot_prev = pivot
-	_pivot_vel = vel
-	var yaw_basis := Basis(Vector3.UP, global_rotation.y)
-	var a := yaw_basis.inverse() * accel.limit_length(40.0)  # in the player's facing frame
-
-	# theta'' = -(g/L) sin(theta) - c theta' + (pivot acceleration)/L
-	var g_over_l := 9.8 / PENDULUM_LENGTH
-	var drive := Vector2(a.z, -a.x) / PENDULUM_LENGTH
-	_swing_vel += (-g_over_l * Vector2(sin(_swing.x), sin(_swing.y)) - PENDULUM_DAMPING * _swing_vel + drive) * delta
-	_swing += _swing_vel * delta
-	_swing = _swing.clamp(Vector2(-PENDULUM_LIMIT, -PENDULUM_LIMIT), Vector2(PENDULUM_LIMIT, PENDULUM_LIMIT))
-	_rig.global_basis = yaw_basis * Basis.from_euler(Vector3(_swing.x, 0.0, _swing.y))
