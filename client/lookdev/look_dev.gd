@@ -150,6 +150,7 @@ func _build_environment(maze: Dictionary) -> void:
 	var moon := DirectionalLight3D.new()
 	moon.light_color = Color(0.55, 0.65, 1.0)
 	moon.light_energy = 0.35
+	moon.light_specular = 0.15  # moonlight on wet leaves read as a glossy sheet
 	moon.light_volumetric_fog_energy = 2.5
 	moon.shadow_enabled = true
 	moon.rotation_degrees = Vector3(-30.0, 165.0, 0.0)
@@ -214,6 +215,9 @@ func _build_maze(maze: Dictionary) -> void:
 		root.add_child(wall)
 		_box(body, pos, yaw, Vector3(CELL, WALL_HEIGHT, 0.62))
 		WallMaterials.apply(wall)
+		if _args.has("hide"):  # look-dev: --hide=<mesh name prefix> hides that wall part (debugging)
+			for mi in wall.find_children(_args["hide"] + "*", "MeshInstance3D", true, false):
+				mi.visible = false
 		_occluder(root, pos, yaw, Vector3(CELL - 1.0, WALL_HEIGHT - 0.4, 0.3))
 		var hm := _hash(x * 5 + 3, y * 11 + key.z)
 		if hm % 5 == 0:  # roughly one wall in five carries a mark

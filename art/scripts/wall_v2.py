@@ -28,7 +28,7 @@ STONE_DEPTH = 0.04  # relief from the (softened) height map: joints ~2 cm in, fa
 STONE_TILE = (3.04, 3.0)  # metres covered by one texture tile
 HEDGE_BOTTOM = 1.75
 SHELL_INSET = 0.14  # the opaque shell sits this far inside the leaf envelope
-SHELL_LIFT = 0.22  # and stops this far above the hem, so its edge never shows
+SHELL_SEAL = STONE_TOP - 0.04  # the shell's bottom sits just inside the stone band (sealed, no gap)
 COLL = "Kit_Wall2"
 
 
@@ -112,6 +112,12 @@ def build_stone(height, u_offsets=(0.37, 1.61), cell=0.012, ratio=0.15):
                 for loop in f.loops:
                     co = loop.vert.co
                     loop[uv].uv = ((co.x * side + u_off) / STONE_TILE[0], co.z / STONE_TILE[1])
+    # cap the band: a strip across the top between the two faces, so nothing can see into the wall
+    cap = [bm.verts.new((x, y, STONE_TOP - 0.005)) for x, y in
+           ((-HALF_X, -STONE_FACE_Y - 0.03), (HALF_X, -STONE_FACE_Y - 0.03), (HALF_X, STONE_FACE_Y + 0.03), (-HALF_X, STONE_FACE_Y + 0.03))]
+    f = bm.faces.new(cap)
+    for loop in f.loops:
+        loop[uv].uv = (loop.vert.co.x / STONE_TILE[0], loop.vert.co.y / STONE_TILE[1])
     me = bpy.data.meshes.new("WallStone2")
     bm.to_mesh(me)
     bm.free()
@@ -160,7 +166,8 @@ def hedge_envelope():
         p = v.co.copy()
         # bulges and columns: a slow in/out push with a vertical bias (1-2 m wavelength)
         bulge = mathutils.noise.noise(Vector((p.x * 0.8, p.y * 0.8, p.z * 0.45)) + Vector((5.3, 1.1, 9.7)))
-        v.co = p + v.normal * (0.3 * bulge)
+        # (fading out towards the hem, so the bottom of the hedge stays tight over the stone)
+        v.co = p + v.normal * (0.3 * bulge * min(1.0, max(0.0, (p.z - HEDGE_BOTTOM) / 1.2)))
         # scalloped hem: the bottom edge dips and rises along the wall
         if p.z < HEDGE_BOTTOM + 0.25:
             dip = 0.12 * mathutils.noise.noise(Vector((p.x * 3.1, 7.3, p.y * 3.1))) + 0.06 * math.sin(p.x * 9.0)
@@ -177,7 +184,9 @@ def build_shell(env):
     me.name = "HedgeShell2"
     for v in me.vertices:
         v.co -= v.normal * SHELL_INSET
-        v.co.z = max(v.co.z, HEDGE_BOTTOM + SHELL_LIFT)
+        v.co.z = max(v.co.z, SHELL_SEAL)
+        if v.co.z < STONE_TOP + 0.25:  # tuck the shell's bottom inside the stone faces: no ledge to see
+            v.co.y = max(-STONE_FACE_Y + 0.04, min(STONE_FACE_Y - 0.04, v.co.y))
     me.materials.clear()
     me.materials.append(_mat("M_HedgeShell2", (0.03, 0.05, 0.02)))
     return _replace("HedgeShell2", me)
@@ -301,7 +310,7 @@ def scatter_hedge(env, rects, rng, density_low=820.0, density_high=380.0, split_
         if tip.length < 1e-3:
             tip = n.cross(up)
         scale = _size(rng) * (1.2 if high else 1.0) * (0.85 + 0.3 * clump)
-        normal = (n * 0.75 + face * 0.25).normalized()
+        normal = (n * 0.5 + face * 0.5).normalized()
         ao = 0.35 + 0.65 * (depth + 0.075) / 0.11
         if n.z < -0.4:
             ao *= 0.6  # undersides of the overhang sit in their own shade

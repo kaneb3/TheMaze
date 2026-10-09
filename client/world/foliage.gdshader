@@ -46,7 +46,10 @@ void fragment() {
 	}
 	NORMAL_MAP = texture(leaf_normal, UV).rgb;
 	NORMAL_MAP_DEPTH = 0.55;
-	ROUGHNESS = mix(0.58, 0.82, texture(leaf_rough, UV).r) * mix(1.0, 0.85, COLOR.b);  // ivy is waxier
-	SPECULAR = 0.28;
+	// hedge leaves are matte; ivy keeps a little wax. Specular fades with distance so the far,
+	// moonlit hedge doesn't glitter like a smooth sheet.
+	float far = smoothstep(6.0, 18.0, length(VERTEX));
+	ROUGHNESS = mix(mix(0.7, 0.88, texture(leaf_rough, UV).r), 0.6, COLOR.b * (1.0 - far));
+	SPECULAR = mix(mix(0.22, 0.3, COLOR.b), 0.08, far);
 	BACKLIGHT = backlight_color * ao;
 }

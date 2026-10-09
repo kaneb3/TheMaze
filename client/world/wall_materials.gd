@@ -101,7 +101,8 @@ static func _ensure() -> void:
 
 	_shell = StandardMaterial3D.new()
 	_shell.albedo_color = Color(0.022, 0.034, 0.016)
-	_shell.roughness = 0.95
+	_shell.roughness = 1.0
+	_shell.metallic_specular = 0.0  # seen at grazing angles from below; must never sheen
 
 	_stems = StandardMaterial3D.new()
 	_stems.albedo_color = Color(0.13, 0.09, 0.06)

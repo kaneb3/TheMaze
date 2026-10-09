@@ -152,7 +152,6 @@ func _ready() -> void:
 	_light.omni_range = 11.0
 	_light.omni_attenuation = 1.25
 	_light.shadow_enabled = true
-	_light.omni_shadow_mode = OmniLight3D.SHADOW_DUAL_PARABOLOID  # 2 shadow passes instead of 6 (dense foliage)
 	_light.shadow_bias = 0.04
 	_light.shadow_normal_bias = 1.5
 	_light.light_volumetric_fog_energy = 0.12
