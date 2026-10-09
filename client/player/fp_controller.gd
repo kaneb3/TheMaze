@@ -20,10 +20,17 @@ const EYE_HEIGHT := 1.65
 # art/characters.blend (HandWork scene, art/scripts/fp_viewmodel.py): the arm model's origin is the grip.
 const HAND_POS := Vector3(-0.28, -0.04, -0.39)  # the grip, relative to the eye
 const LANTERN_SCALE := 0.5
-const LANTERN_HANG := -0.2907  # lantern origin below the grip (through the carrying ring)
+const LANTERN_BELOW_EYE := -0.2047  # lantern origin below the hoop's eye
 const LANTERN_FLAME := 0.098
-const RING_RADIUS := 0.045
-const RING_NORMAL := Vector3(0.3388, 0.0, 0.9409)  # ring plane faces mostly towards the eye
+# Carrying hoop (art/scripts/fp_viewmodel.py, HOOP/GRIP): a stirrup of 6 mm iron rod whose top bar,
+# sleeved in a worn wooden grip, lies in the tunnel the curled fingers make along the knuckle line.
+# Its legs leave past the thumb and the little finger; it hinges about the bar and hangs plumb,
+# and the lantern hangs from its eye. Contact shading is baked into vertex colours.
+const HOOP_BAR := Vector3(0.0, 0.001, 0.0095)  # bar centre in grip space
+const HOOP_EYE := Vector3(0.016, -0.086, 0.0)  # eye in the hoop's own frame
+const GRIP_SPAN := Vector2(-0.054, 0.051)  # wooden grip along the bar, knob end included (hoop frame x)
+const HOOP_REST_TILT := 0.0
+const HOOP_LIMITS := Vector2(deg_to_rad(-35.0), deg_to_rad(45.0))  # the fist stops it beyond these
 const VIEWMODEL_LAYER := 1 << 2  # render layer 3: lit by the viewmodel fill only
 const SUBSTEP := 1.0 / 240.0
 const BASE_FOV := 72.0
@@ -31,7 +38,8 @@ const BASE_FOV := 72.0
 var _head: Node3D
 var _camera: Camera3D
 var _hand: Node3D  # rides on the camera; the arm and the lantern pivot hang off it
-var _rig: Node3D  # lantern pivot at the fist; oriented in world space (gravity-down)
+var _rig: Node3D  # lantern pivot at the hoop's eye; oriented in world space (gravity-down)
+var _hoop: Node3D  # hinges about its bar in the fist
 var _lantern: Node3D
 var _arm: Node3D
 var _light: OmniLight3D
@@ -105,29 +113,35 @@ func _ready() -> void:
 			_squeeze_idx = mi.find_blend_shape_by_name("squeeze")
 			_relax_idx = mi.find_blend_shape_by_name("relax")
 
+	# The dark-iron carrying hoop, gripped in the fist; the lantern hangs from its eye.
+	_hoop = (load("res://client/assets/ring1/fp_hoop.glb") as PackedScene).instantiate()
+	_hoop.name = "CarryHoop"
+	_hoop.position = HOOP_BAR
+	_hoop.rotation.x = HOOP_REST_TILT
+	_hand.add_child(_hoop)
+	var hoop_meshes := _hoop.find_children("*", "MeshInstance3D", true, false)
+	var iron := _hoop_material(Color(0.085, 0.07, 0.058), Color(0.16, 0.085, 0.045), 0.62, 0.85, Vector3.ONE * 70.0)
+	var dull := _hoop_material(Color(0.06, 0.05, 0.042), Color(0.11, 0.075, 0.05), 0.7, 0.6, Vector3.ONE * 90.0)
+	var wood := _hoop_material(Color(0.075, 0.042, 0.024), Color(0.15, 0.085, 0.048), 0.62, 0.0, Vector3(18.0, 150.0, 150.0))
+	wood.metallic_specular = 0.3  # oiled wood: a soft sheen, not a hot plastic highlight
+	for node in hoop_meshes:
+		var mname := String(node.name)
+		(node as MeshInstance3D).material_override = wood if mname.contains("Grip") else (dull if mname.contains("Ferrule") else iron)
+	if _hand_mesh:
+		# Contact shading where the glove wraps the grip (the hand mesh's space is grip space).
+		var shade := ShaderMaterial.new()
+		shade.shader = load("res://client/player/contact_shade.gdshader")
+		shade.set_shader_parameter("cap_a", HOOP_BAR + Vector3(GRIP_SPAN.x, 0.0, 0.0))
+		shade.set_shader_parameter("cap_b", HOOP_BAR + Vector3(GRIP_SPAN.y, 0.0, 0.0))
+		_hand_mesh.material_overlay = shade
+
 	_rig = Node3D.new()
 	_rig.name = "LanternRig"
 	_hand.add_child(_rig)
-	# One dark-iron carrying ring hooked by the fingers; the lantern hangs from it.
-	var ring := MeshInstance3D.new()
-	ring.name = "CarryRing"
-	var torus := TorusMesh.new()
-	torus.inner_radius = RING_RADIUS - 0.0038
-	torus.outer_radius = RING_RADIUS + 0.0038
-	torus.rings = 48
-	torus.ring_segments = 10
-	var iron := StandardMaterial3D.new()
-	iron.albedo_color = Color(0.09, 0.075, 0.06)
-	iron.metallic = 1.0
-	iron.roughness = 0.32
-	torus.material = iron
-	ring.mesh = torus
-	ring.position = Vector3(0.0, -RING_RADIUS + 0.004, 0.0)
-	ring.quaternion = Quaternion(Vector3.UP, RING_NORMAL.normalized())  # torus axis -> ring normal (plane stands vertical)
-	_rig.add_child(ring)
+	_rig.position = HOOP_BAR + Basis(Vector3.RIGHT, HOOP_REST_TILT) * HOOP_EYE
 	_lantern = (load("res://client/assets/ring1/fp_lantern.glb") as PackedScene).instantiate()
 	_lantern.scale = Vector3.ONE * LANTERN_SCALE
-	_lantern.position = Vector3(0.0, LANTERN_HANG, 0.0)
+	_lantern.position = Vector3(0.0, LANTERN_BELOW_EYE, 0.0)
 	_lantern.rotation.y = deg_to_rad(25.0)
 	_rig.add_child(_lantern)
 
@@ -145,12 +159,12 @@ func _ready() -> void:
 	_light.position = _lantern.position + Vector3(0.0, LANTERN_FLAME * LANTERN_SCALE, 0.0)
 	_rig.add_child(_light)
 	var fill := LanternLighting.rig(_lantern, _light, Vector3(0.0, LANTERN_FLAME, 0.0))
-	fill.omni_range = 1.0  # also lights the glove, ring and cuff from below
+	fill.omni_range = 1.0  # also lights the glove, hoop and cuff from below
 	fill.light_energy = 0.6
 	fill.light_color = Color(1.0, 0.6, 0.3)
 	# The flame hangs ~27 cm below the fist, so the lantern light can warm the glove's underside
 	# directly; the arm just must not cast shadows over the view.
-	for node in _arm.find_children("*", "MeshInstance3D", true, false) + [ring]:
+	for node in _arm.find_children("*", "MeshInstance3D", true, false) + hoop_meshes:
 		var mi := node as MeshInstance3D
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.layers |= VIEWMODEL_LAYER
@@ -272,7 +286,8 @@ func _process(delta: float) -> void:
 	_hand.rotation = _motion.hand_rotation
 	var yaw_basis := Basis(Vector3.UP, global_rotation.y)
 	_rig.global_basis = yaw_basis * Basis(Vector3.UP, _motion.twist) * Basis.from_euler(Vector3(_motion.swing.x, 0.0, _motion.swing.y))
-	_lantern.position.y = LANTERN_HANG - _motion.stretch
+	_hang_hoop()
+	_lantern.position.y = LANTERN_BELOW_EYE - _motion.stretch
 	_light.position.y = _lantern.position.y + LANTERN_FLAME * LANTERN_SCALE
 
 	_animate_grip(delta, Vector2(velocity.x, velocity.z).length())
@@ -281,6 +296,37 @@ func _process(delta: float) -> void:
 		_log.append("%.3f,%.3f,%.2f,%.2f,%.4f,%.4f,%.3f,%.4f,%.3f,%d" % [_time, Vector2(velocity.x, velocity.z).length(),
 			rad_to_deg(_motion.swing.x), rad_to_deg(_motion.swing.y), _hand.position.x - HAND_POS.x,
 			_hand.position.y - HAND_POS.y, v_side, _view.offset.y, rad_to_deg(_view.roll), _view.footsteps])
+
+
+## Aged iron / hand-polished wood: a noise tint (rust patches, or grain stretched along the bar)
+## multiplied by the baked contact shading in the vertex colours.
+func _hoop_material(dark: Color, light: Color, rough: float, metal: float, tri_scale: Vector3) -> StandardMaterial3D:
+	var ramp := Gradient.new()
+	ramp.set_color(0, dark)
+	ramp.set_color(1, light)
+	var noise := FastNoiseLite.new()
+	noise.frequency = 0.05
+	var tex := NoiseTexture2D.new()
+	tex.noise = noise
+	tex.color_ramp = ramp
+	tex.seamless = true
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.vertex_color_use_as_albedo = true
+	m.uv1_triplanar = true
+	m.uv1_scale = tri_scale
+	m.roughness = rough
+	m.metallic = metal
+	return m
+
+
+## The hoop can only turn about its bar in the fist: it follows the lantern's pull (the pendulum's
+## down direction seen from the hand) on top of its rest lean, and the lantern pivots at its eye.
+func _hang_hoop() -> void:
+	var pull := _hand.global_basis.inverse() * (_rig.global_basis * Vector3.DOWN)
+	var angle := atan2(-pull.z, -pull.y) + HOOP_REST_TILT
+	_hoop.rotation = Vector3(clampf(angle, HOOP_LIMITS.x, HOOP_LIMITS.y), 0.0, 0.0)
+	_rig.global_position = _hoop.global_transform * HOOP_EYE
 
 
 ## One sound per footfall, locked to the camera's stride. Running lands harder; a stop ends with
