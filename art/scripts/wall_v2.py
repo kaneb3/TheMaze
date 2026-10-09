@@ -22,7 +22,8 @@ from mathutils.bvhtree import BVHTree
 
 REPO = r"C:\Users\kaneb\Documents\the-maze"
 HALF_X = 1.62  # wall half-length (ends hide inside the pillars)
-STONE_TOP = 1.9
+STONE_TOP = 1.9  # where the foliage hem starts (grime, leaks and contact shade key off this)
+WALL_TOP = 7.0  # the stone itself runs the full height; ivy and hedge grow over it
 STONE_FACE_Y = 0.30  # mean face plane (core is 0.4 thick)
 STONE_DEPTH = 0.04  # relief from the (softened) height map: joints ~2 cm in, faces ~2 cm out
 STONE_TILE = (3.04, 3.0)  # metres covered by one texture tile
@@ -90,16 +91,27 @@ def stone_surface_y(height, side, x, z, u_off):
     return side * (STONE_FACE_Y + STONE_DEPTH * (height.soft(u, v) - 0.5))
 
 
+def _stone_rows(cell):
+    """Row heights: fine where the stone is in plain view, coarser above the hem (behind leaves)."""
+    rows, z = [], 0.0
+    while z < WALL_TOP:
+        rows.append(z)
+        z += cell if z < STONE_TOP + 0.3 else 0.04
+    rows.append(WALL_TOP)
+    return rows
+
+
 def build_stone(height, u_offsets=(0.37, 1.61), cell=0.012, ratio=0.15):
-    """Both faces of the stone band as displaced grids with tile-scale UVs, decimated."""
+    """Both faces of the full-height stone wall as displaced grids with tile-scale UVs, decimated."""
     bm = bmesh.new()
     uv = bm.loops.layers.uv.new("UVMap")
     nx = int(2 * HALF_X / cell)
-    nz = int(STONE_TOP / cell)
+    rows = _stone_rows(cell)
+    nz = len(rows) - 1
     for side, u_off in zip((1, -1), u_offsets):
         grid = []
         for j in range(nz + 1):
-            z = STONE_TOP * j / nz
+            z = rows[j]
             row = []
             for i in range(nx + 1):
                 x = -HALF_X + 2 * HALF_X * i / nx
@@ -112,8 +124,8 @@ def build_stone(height, u_offsets=(0.37, 1.61), cell=0.012, ratio=0.15):
                 for loop in f.loops:
                     co = loop.vert.co
                     loop[uv].uv = ((co.x * side + u_off) / STONE_TILE[0], co.z / STONE_TILE[1])
-    # cap the band: a strip across the top between the two faces, so nothing can see into the wall
-    cap = [bm.verts.new((x, y, STONE_TOP - 0.005)) for x, y in
+    # cap the top of the wall between its two faces
+    cap = [bm.verts.new((x, y, WALL_TOP - 0.005)) for x, y in
            ((-HALF_X, -STONE_FACE_Y - 0.03), (HALF_X, -STONE_FACE_Y - 0.03), (HALF_X, STONE_FACE_Y + 0.03), (-HALF_X, STONE_FACE_Y + 0.03))]
     f = bm.faces.new(cap)
     for loop in f.loops:
@@ -492,13 +504,12 @@ def build_all(dl_dir, seed=11, u_offsets=(0.37, 1.61)):
     height = Height(dl_dir + r"\rough_block_wall\rough_block_wall_disp_2k.png")
     stone, stone_far = build_stone(height, u_offsets)
     env = hedge_envelope()
-    shell = build_shell(env)
     rects = load_rects()
     leaf_mat = _mat("M_Leaf2", (0.2, 0.35, 0.15))
     lod0, lod1 = scatter_hedge(env, rects, rng)
     ivy, stems = scatter_ivy(height, rects, rng, u_offsets)
     scatter_hem(height, rects, rng, ivy, stems, u_offsets)
-    objs = [stone, stone_far, shell, lod0.build(leaf_mat), lod1.build(leaf_mat), ivy.build(leaf_mat), build_stems(stems)]
+    objs = [stone, stone_far, lod0.build(leaf_mat), lod1.build(leaf_mat), ivy.build(leaf_mat), build_stems(stems)]
     bpy.data.meshes.remove(env)
     return {o.name: len(o.data.polygons) for o in objs}
 
@@ -542,13 +553,14 @@ def build_pillar_stone(height, cell=0.014, ratio=0.15):
     bm = bmesh.new()
     uv = bm.loops.layers.uv.new("UVMap")
     n = int(2 * PILLAR_HALF / cell)
-    nz = int((STONE_TOP + 0.15) / cell)
+    rows = _stone_rows(cell)
+    nz = len(rows) - 1
     for k in range(4):
         rot = Matrix.Rotation(k * math.pi / 2, 3, 'Z')
         u_off = 0.23 + 0.71 * k
         grid = []
         for j in range(nz + 1):
-            z = (STONE_TOP + 0.15) * j / nz
+            z = rows[j]
             row = []
             for i in range(n + 1):
                 x = -PILLAR_HALF + 2 * PILLAR_HALF * i / n
@@ -564,6 +576,8 @@ def build_pillar_stone(height, cell=0.014, ratio=0.15):
                 for loop in f.loops:
                     lc = rot.inverted() @ loop.vert.co
                     loop[uv].uv = ((lc.x + u_off) / STONE_TILE[0], lc.z / STONE_TILE[1])
+    cap = [bm.verts.new((x, y, WALL_TOP + 0.05)) for x, y in ((-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5))]
+    bm.faces.new(cap)
     bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=0.004)
     me = bpy.data.meshes.new("PillarStone2")
     bm.to_mesh(me)
@@ -607,21 +621,10 @@ def build_pillar(dl_dir, out_path, seed=5):
         height = Height(dl_dir + r"\rough_block_wall\rough_block_wall_disp_2k.png")
         stone = build_pillar_stone(height)
         env = pillar_envelope()
-        me = env.copy()
-        me.name = "HedgeShell2"
-        for v in me.vertices:
-            v.co -= v.normal * SHELL_INSET
-            v.co.z = max(v.co.z, SHELL_SEAL)
-            if v.co.z < STONE_TOP + 0.25:
-                lim = PILLAR_HALF - 0.04
-                v.co.x = max(-lim, min(lim, v.co.x))
-                v.co.y = max(-lim, min(lim, v.co.y))
-        me.materials.append(_mat("M_HedgeShell2", (0.03, 0.05, 0.02)))
-        shell = _replace("HedgeShell2", me)
         rects = load_rects()
         leaf_mat = _mat("M_Leaf2", (0.2, 0.35, 0.15))
         lod0, lod1 = scatter_hedge(env, rects, rng)
-        objs = [stone, shell, lod0.build(leaf_mat), lod1.build(leaf_mat)]
+        objs = [stone, lod0.build(leaf_mat), lod1.build(leaf_mat)]
         bpy.data.meshes.remove(env)
         export(out_path)
         return {o.name: len(o.data.polygons) for o in objs}

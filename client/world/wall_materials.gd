@@ -7,7 +7,7 @@ extends RefCounted
 ##   on its own UVs (box-mapping relief stone picks the projection per vertex normal, so bumpy
 ##   faces flip between projections mid-triangle and the texture smears into swirls)
 ## - HedgeLeaves2_LOD0 / _LOD1, IvyLeaves2: foliage.gdshader; LOD0 within FOLIAGE_LOD_M, LOD1 beyond
-## - HedgeShell2: the dark mass inside the hedge; IvyStems2: woody stems
+## - IvyStems2: woody stems. Behind the foliage is the full-height stone wall itself.
 ## Only near foliage casts lantern shadows (an omni shadow renders every caster 6 times).
 
 const FOLIAGE_LOD_M := 11.0
@@ -19,7 +19,6 @@ const DIR := "res://client/assets/ring1/"
 static var _stone: ShaderMaterial
 static var _pillar: ShaderMaterial
 static var _leaves: ShaderMaterial
-static var _shell: ShaderMaterial
 static var _stems: StandardMaterial3D
 static var _floor: ShaderMaterial
 static var _macro: NoiseTexture2D
@@ -58,8 +57,6 @@ static func apply(wall: Node) -> void:
 		elif n.begins_with("IvyLeaves2"):
 			mi.material_override = _leaves
 			mi.visibility_range_end = FOLIAGE_LOD_M + 6.0
-		elif n.begins_with("HedgeShell2"):
-			mi.material_override = _shell
 		elif n.begins_with("IvyStems2"):
 			mi.material_override = _stems
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -106,9 +103,6 @@ static func _ensure() -> void:
 	_leaves.set_shader_parameter("leaf_normal", load(DIR + "foliage/leaf_normal.png"))
 	_leaves.set_shader_parameter("leaf_rough", load(DIR + "foliage/leaf_rough.png"))
 
-	_shell = ShaderMaterial.new()
-	_shell.shader = load("res://client/world/hedge_shell.gdshader")
-	_shell.set_shader_parameter("leaf_albedo", load(DIR + "foliage/leaf_albedo.png"))
 
 	_stems = StandardMaterial3D.new()
 	_stems.albedo_color = Color(0.13, 0.09, 0.06)
