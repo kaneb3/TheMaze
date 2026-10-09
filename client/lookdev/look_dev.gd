@@ -116,10 +116,11 @@ func _hash(a: int, b: int) -> int:
 
 func _build_environment(maze: Dictionary) -> void:
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.06, 0.1, 0.14)  # overcast steel-blue night (#1A2B3A..#43586E)
-	sky_mat.sky_horizon_color = Color(0.13, 0.19, 0.25)
-	sky_mat.ground_horizon_color = Color(0.05, 0.08, 0.11)
-	sky_mat.ground_bottom_color = Color(0.0, 0.0, 0.0)
+	# the sky's radiance now also drives the (directional) ambient light
+	sky_mat.sky_top_color = Color(0.16, 0.24, 0.31)
+	sky_mat.sky_horizon_color = Color(0.12, 0.18, 0.23)
+	sky_mat.ground_horizon_color = Color(0.06, 0.09, 0.11)
+	sky_mat.ground_bottom_color = Color(0.02, 0.03, 0.035)
 	sky_mat.sun_angle_max = 2.0
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
@@ -127,14 +128,16 @@ func _build_environment(maze: Dictionary) -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.165, 0.26, 0.34)  # #2A4256: dim cold fill, ~3 stops under the key
-	env.ambient_light_energy = 0.22
+	# directional sky ambient (tops see the zenith, sides the horizon); the shaders occlude it by
+	# depth in the corridor, so walls read as forms instead of flat silhouettes
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_sky_contribution = 1.0
+	env.ambient_light_energy = 1.0
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
-	env.tonemap_exposure = 1.15
+	env.tonemap_exposure = 1.7
 	# grade: desaturated and cool, a little contrast (shadows stay readable, never crushed)
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 0.72
+	env.adjustment_saturation = 0.8
 	env.adjustment_contrast = 1.1
 	# teal grade (sampled from the film's maze frames): red pulled hard down at every level, a
 	# lifted blue-black floor (never pure black), highlights rolling off to pale steel-blue
@@ -142,17 +145,18 @@ func _build_environment(maze: Dictionary) -> void:
 	# per-channel curves (each channel looks up its own value): red bent well below identity,
 	# green slightly, blue near identity, all with a small lifted floor
 	ramp.offsets = PackedFloat32Array([0.0, 0.25, 0.5, 0.75, 1.0])
-	ramp.colors = PackedColorArray([Color(0.006, 0.02, 0.03), Color(0.15, 0.24, 0.27), Color(0.36, 0.48, 0.53),
+	ramp.colors = PackedColorArray([Color(0.004, 0.012, 0.018), Color(0.15, 0.24, 0.27), Color(0.36, 0.48, 0.53),
 		Color(0.6, 0.73, 0.78), Color(0.86, 0.95, 1.0)])
 	var grade := GradientTexture1D.new()
 	grade.gradient = ramp
 	grade.width = 256
 	env.adjustment_color_correction = grade
 	env.ssao_enabled = true
-	env.ssao_radius = 0.5
+	env.ssao_radius = 0.6
+	env.ssao_intensity = 2.5
 	env.ssao_power = 1.6
-	env.ssao_detail = 1.2
-	env.ssao_light_affect = 0.35  # joints occlude the lantern too
+	env.ssao_detail = 1.0
+	env.ssao_light_affect = 0.25  # joints occlude the lantern too
 	env.ssao_ao_channel_affect = 1.0
 	# AgX: more contrast and a lower white point for a night scene, so the lantern's hotspot keeps
 	# its texture instead of washing to a pale sheen
@@ -160,64 +164,112 @@ func _build_environment(maze: Dictionary) -> void:
 		env.set("tonemap_agx_contrast", 1.4)
 		env.set("tonemap_agx_white", 9.0)
 	env.glow_enabled = true
-	env.glow_intensity = 0.45
-	env.glow_bloom = 0.04
+	env.glow_intensity = 0.35
+	env.glow_bloom = 0.0  # no blurred copy of the whole frame: only real highlights glow
+	env.glow_hdr_threshold = 1.0
+	env.set_glow_level(0, 0.0)
+	env.set_glow_level(1, 0.6)
+	env.set_glow_level(2, 0.6)
+	env.set_glow_level(3, 0.3)
+	env.set_glow_level(4, 0.0)
+	env.set_glow_level(5, 0.0)
+	env.set_glow_level(6, 0.0)
 	env.volumetric_fog_enabled = true
 	# thick, cold, backlit fog: the brightest thing in frame looking towards the moon; things vanish
 	# at ~30-40 m
-	env.volumetric_fog_density = 0.042
+	env.volumetric_fog_density = 0.05
 	env.volumetric_fog_albedo = Color(0.66, 0.76, 0.84)  # #A9C2D6
 	env.volumetric_fog_emission = Color(0.043, 0.1, 0.14)  # #0B1A24
-	env.volumetric_fog_emission_energy = 0.5
+	env.volumetric_fog_emission_energy = 0.3
 	env.volumetric_fog_anisotropy = 0.4
-	env.volumetric_fog_length = 56.0
-	env.volumetric_fog_ambient_inject = 0.08  # the moon shafts carry the brightness, not an even veil
-	env.volumetric_fog_sky_affect = 0.2
+	env.volumetric_fog_length = 48.0
+	env.volumetric_fog_temporal_reprojection_amount = 0.85
+	env.volumetric_fog_ambient_inject = 0.3
+	env.volumetric_fog_sky_affect = 1.0  # the sky fogs like the walls in front of it: no step at the crown
 	# backstop beyond the volumetric fog's range: distant walls dissolve into the same cold mist
 	# instead of standing out as dark blocks
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_DEPTH
-	env.fog_light_color = Color(0.13, 0.24, 0.31)
+	env.fog_light_color = Color(0.12, 0.2, 0.26)
 	env.fog_light_energy = 1.0
-	env.fog_depth_begin = 18.0
-	env.fog_depth_end = 42.0
-	env.fog_depth_curve = 1.0
-	env.fog_sky_affect = 0.0
+	env.fog_density = 1.0  # (the default 0.01 capped depth fog at 1%)
+	env.fog_depth_begin = 30.0
+	env.fog_depth_end = 70.0
+	env.fog_depth_curve = 1.5
+	env.fog_sky_affect = 1.0
+	env.fog_sun_scatter = 0.25
 	get_viewport().positional_shadow_atlas_size = 8192
+	if _args.has("sdfgi"):  # look-dev A/B: Godot's real-time GI (sky occlusion + bounce)
+		env.sdfgi_enabled = true
+		env.sdfgi_cascades = 3
+		env.sdfgi_min_cell_size = 0.2
+		env.sdfgi_y_scale = Environment.SDFGI_Y_SCALE_50_PERCENT
+		env.sdfgi_use_occlusion = true
+		env.sdfgi_read_sky_light = true
+		env.sdfgi_bounce_feedback = 0.3
+		env.volumetric_fog_gi_inject = 1.0
+	if _args.has("nofog"):  # look-dev: --nofog shows the bare geometry and lighting (debugging)
+		env.volumetric_fog_enabled = false
+		env.fog_enabled = false
+	if not _args.has("nograin"):
+		var grain_layer := CanvasLayer.new()
+		grain_layer.layer = 100
+		var grain := ColorRect.new()
+		grain.set_anchors_preset(Control.PRESET_FULL_RECT)
+		grain.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var grain_mat := ShaderMaterial.new()
+		grain_mat.shader = load("res://client/world/film_grain.gdshader")
+		grain.material = grain_mat
+		grain_layer.add_child(grain)
+		add_child(grain_layer)
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 
 	var moon := DirectionalLight3D.new()
 	moon.light_color = Color(0.62, 0.75, 0.87)  # #9EC0DD steel-teal, not lavender
-	moon.light_energy = 0.55
+	moon.light_energy = 0.5
 	moon.light_specular = 0.15  # moonlight on wet leaves read as a glossy sheet
-	moon.light_volumetric_fog_energy = 1.2
+	moon.light_volumetric_fog_energy = 2.2
 	moon.shadow_enabled = true
-	moon.rotation_degrees = Vector3(-68.0, 165.0, 0.0)  # high: comes down the slot between the walls
+	# 45 deg: rakes the upper half of the walls and backlights the fog at eye level
+	moon.rotation_degrees = Vector3(-45.0, 150.0, 0.0)
+	moon.light_angular_distance = 1.0
+	moon.directional_shadow_max_distance = 60.0
+	moon.directional_shadow_blend_splits = true
 	add_child(moon)
 
-	# Patchy ground mist hugging the floor.
+	# Patchy ground mist hugging the floor (client/world/ground_mist.gdshader).
 	var noise := FastNoiseLite.new()
-	noise.frequency = 0.035
+	noise.frequency = 0.06
 	var tex := NoiseTexture3D.new()
 	tex.width = 64
-	tex.height = 32
+	tex.height = 64
 	tex.depth = 64
 	tex.seamless = true
 	tex.noise = noise
-	var fog_mat := FogMaterial.new()
-	fog_mat.density = 0.3  # ground mist: denser near the floor, blending smoothly into the air above
-	fog_mat.albedo = Color(0.66, 0.76, 0.84)
-	fog_mat.height_falloff = 1.4
-	fog_mat.edge_fade = 0.25
-	fog_mat.density_texture = tex
+	var fog_mat := ShaderMaterial.new()
+	fog_mat.shader = load("res://client/world/ground_mist.gdshader")
+	fog_mat.set_shader_parameter("noise_tex", tex)
 	var mist := FogVolume.new()
 	mist.shape = RenderingServer.FOG_VOLUME_SHAPE_BOX
-	mist.size = Vector3(maze.width * CELL + 8.0, 6.0, maze.height * CELL + 8.0)  # dense at the floor, fading up
+	mist.size = Vector3(maze.width * CELL + 8.0, 6.0, maze.height * CELL + 8.0)
 	mist.position = Vector3(maze.width * CELL * 0.5, 2.5, maze.height * CELL * 0.5)
 	mist.material = fog_mat
 	add_child(mist)
+
+	# A soft, faintly glowing layer above the walls: the crowns silhouette against it, as in the film.
+	var high_mat := FogMaterial.new()
+	high_mat.density = 0.02
+	high_mat.albedo = Color(0.66, 0.76, 0.84)
+	high_mat.emission = Color(0.10, 0.16, 0.21)
+	high_mat.edge_fade = 0.4
+	var high := FogVolume.new()
+	high.shape = RenderingServer.FOG_VOLUME_SHAPE_BOX
+	high.size = Vector3(maze.width * CELL + 40.0, 13.5, maze.height * CELL + 40.0)
+	high.position = Vector3(maze.width * CELL * 0.5, 13.25, maze.height * CELL * 0.5)
+	high.material = high_mat
+	add_child(high)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -225,7 +277,7 @@ func _build_environment(maze: Dictionary) -> void:
 
 func _build_maze(maze: Dictionary) -> void:
 	var wall_scenes: Array[PackedScene] = [load(ASSETS + "wall2_a.glb"), load(ASSETS + "wall2_b.glb"), load(ASSETS + "wall2_c.glb")]
-	var pillar_scene: PackedScene = load(ASSETS + "pillar.glb")
+	var pillar_scene: PackedScene = load(ASSETS + "pillar2.glb")
 	var root := Node3D.new()
 	root.name = "Maze"
 	add_child(root)
@@ -274,6 +326,8 @@ func _build_maze(maze: Dictionary) -> void:
 		pillar.rotation.y = (_hash(p.x, p.y) % 4) * PI / 2.0
 		root.add_child(pillar)
 		_box(body, pillar.position, 0.0, Vector3(0.95, WALL_HEIGHT, 0.95))
+		if _args.get("hide", "") == "pillar":
+			pillar.visible = false
 		_occluder(root, pillar.position, 0.0, Vector3(0.8, WALL_HEIGHT - 0.4, 0.8))
 		WallMaterials.apply(pillar)
 

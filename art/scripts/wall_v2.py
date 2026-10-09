@@ -168,6 +168,10 @@ def hedge_envelope():
         bulge = mathutils.noise.noise(Vector((p.x * 0.8, p.y * 0.8, p.z * 0.45)) + Vector((5.3, 1.1, 9.7)))
         # (fading out towards the hem, so the bottom of the hedge stays tight over the stone)
         v.co = p + v.normal * (0.3 * bulge * min(1.0, max(0.0, (p.z - HEDGE_BOTTOM) / 1.2)))
+        # uneven top: the crown rises and dips 0-30 cm along the wall
+        if p.z > 6.5:
+            crown = 0.25 * mathutils.noise.noise(Vector((p.x * 1.3, p.y, 4.2))) + 0.12 * mathutils.noise.noise(Vector((p.x * 4.1, p.y * 3.0, 9.1)))
+            v.co.z += crown * min(1.0, (p.z - 6.5) / 0.5)
         # scalloped hem: the bottom edge dips and rises along the wall
         if p.z < HEDGE_BOTTOM + 0.25:
             dip = 0.12 * mathutils.noise.noise(Vector((p.x * 3.1, 7.3, p.y * 3.1))) + 0.06 * math.sin(p.x * 9.0)
@@ -291,7 +295,8 @@ def scatter_hedge(env, rects, rng, density_low=820.0, density_high=380.0, split_
         high = p.z > split_z
         if high and rng.random() > density_high / density_low:
             continue
-        if n.z > 0.6 and rng.random() > 0.35:
+        top = n.z > 0.5
+        if top and rng.random() > 0.7:
             continue
         # clumps and pockets: density and leaf size follow a slow noise, so the mass bulges and
         # the dark interior shows through in places instead of an even carpet
@@ -302,7 +307,12 @@ def scatter_hedge(env, rects, rng, density_low=820.0, density_high=380.0, split_
         species = next(s for s, wgt in _cum(mix) if roll <= wgt)
         rect = rng.choice(by_species[species])
         depth = rng.uniform(-0.075, 0.035) + (clump - 0.5) * 0.05  # bulges stand proud
-        origin = p + n * depth
+        sprig = 0.0
+        if top or (n.z > 0.15 and p.z > 6.0):
+            # a ragged crown: shoots and sprigs standing 5-45 cm proud of the top, so the skyline
+            # is broken and leafy instead of a ruler-straight edge
+            sprig = rng.random() ** 2.2 * 0.45 * (0.4 + 1.2 * clump)
+        origin = p + n * depth + Vector((0, 0, sprig))
         jitter = Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-1, 1)))
         face = (n * 0.7 + jitter * 0.5 + up * 0.2).normalized()  # mostly outward; some edge-on
         jitter2 = Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-1, 1)))
@@ -311,12 +321,12 @@ def scatter_hedge(env, rects, rng, density_low=820.0, density_high=380.0, split_
             tip = n.cross(up)
         scale = _size(rng) * (1.2 if high else 1.0) * (0.85 + 0.3 * clump)
         normal = (n * 0.5 + face * 0.5).normalized()
-        ao = 0.35 + 0.65 * (depth + 0.075) / 0.11
+        ao = min(1.0, 0.35 + 0.65 * (depth + 0.075) / 0.11 + sprig)
         if n.z < -0.4:
             ao *= 0.6  # undersides of the overhang sit in their own shade
         rnd = rng.random()
         lod0.add(rect, scale, origin, tip, face, normal, ao, rnd, 0.0)
-        if rng.random() < 0.3:
+        if rng.random() < (0.55 if sprig > 0.05 else 0.3):  # keep the skyline ragged at distance too
             lod1.add(rect, scale * 1.6, origin, tip, face, normal, ao, rnd, 0.0)
     return lod0, lod1
 
@@ -517,3 +527,103 @@ def build_variants(dl_dir, out_dir):
         out[key] = build_all(dl_dir, seed, offs)
         export(out_dir + rf"\wall2_{key}.glb")
     return out
+
+
+# ---------------------------------------------------------------------------------------------
+# Pillar v2 (2026-10-09): the old pillars were smooth 8.2 m stone posts with flat caps that stood
+# above the hedges and read as hard cut-out silhouettes against the sky. Now: a stone base like the
+# walls, then hedge all the way up with a ragged leafy crown just above the wall hedges.
+
+PILLAR_HALF = 0.5
+PILLAR_TOP = 7.35
+
+
+def build_pillar_stone(height, cell=0.014, ratio=0.15):
+    bm = bmesh.new()
+    uv = bm.loops.layers.uv.new("UVMap")
+    n = int(2 * PILLAR_HALF / cell)
+    nz = int((STONE_TOP + 0.15) / cell)
+    for k in range(4):
+        rot = Matrix.Rotation(k * math.pi / 2, 3, 'Z')
+        u_off = 0.23 + 0.71 * k
+        grid = []
+        for j in range(nz + 1):
+            z = (STONE_TOP + 0.15) * j / nz
+            row = []
+            for i in range(n + 1):
+                x = -PILLAR_HALF + 2 * PILLAR_HALF * i / n
+                # corners pull in a little so the four faces meet as a worn arris, not a seam
+                edge = min(1.0, (PILLAR_HALF - abs(x)) / 0.04)
+                d = (STONE_FACE_Y - 0.3 + PILLAR_HALF) + STONE_DEPTH * (height.soft((x + u_off) / STONE_TILE[0], z / STONE_TILE[1]) - 0.5) * edge
+                row.append(bm.verts.new(rot @ Vector((x, d, z))))
+            grid.append(row)
+        for j in range(nz):
+            for i in range(n):
+                quad = (grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i])
+                f = bm.faces.new(tuple(reversed(quad)))
+                for loop in f.loops:
+                    lc = rot.inverted() @ loop.vert.co
+                    loop[uv].uv = ((lc.x + u_off) / STONE_TILE[0], lc.z / STONE_TILE[1])
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=0.004)
+    me = bpy.data.meshes.new("PillarStone2")
+    bm.to_mesh(me)
+    bm.free()
+    for poly in me.polygons:
+        poly.use_smooth = True
+    me.materials.append(_mat("M_Stone2", (0.45, 0.42, 0.38)))
+    ob = _replace("PillarStone2", me)
+    dec = ob.modifiers.new("Decimate", 'DECIMATE')
+    dec.ratio = ratio
+    dec.use_collapse_triangulate = True
+    return ob
+
+
+def pillar_envelope():
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    for v in bm.verts:
+        v.co = Vector((v.co.x * 1.12, v.co.y * 1.12, HEDGE_BOTTOM + (v.co.z + 0.5) * (PILLAR_TOP - HEDGE_BOTTOM)))
+    bmesh.ops.bevel(bm, geom=bm.edges[:], offset=0.18, segments=3, affect='EDGES')
+    bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=3, use_grid_fill=True)
+    bm.normal_update()
+    for v in bm.verts:
+        p = v.co.copy()
+        lump = mathutils.noise.noise(p * 1.7 + Vector((2.2, 8.1, 4.4)))
+        crown = 0.25 * max(0.0, mathutils.noise.noise(p * 3.1)) if p.z > PILLAR_TOP - 0.3 else 0.0
+        v.co = p + v.normal * (0.07 * lump * min(1.0, (p.z - HEDGE_BOTTOM) / 0.8)) + Vector((0, 0, crown))
+    me = bpy.data.meshes.new("PillarEnv")
+    bm.to_mesh(me)
+    bm.free()
+    return me
+
+
+def build_pillar(dl_dir, out_path, seed=5):
+    global COLL
+    bpy.context.window.scene = bpy.data.scenes["Ring1Kit"]
+    prev_coll = COLL
+    COLL = "Kit_Pillar2"
+    try:
+        rng = random.Random(seed)
+        height = Height(dl_dir + r"\rough_block_wall\rough_block_wall_disp_2k.png")
+        stone = build_pillar_stone(height)
+        env = pillar_envelope()
+        me = env.copy()
+        me.name = "HedgeShell2"
+        for v in me.vertices:
+            v.co -= v.normal * SHELL_INSET
+            v.co.z = max(v.co.z, SHELL_SEAL)
+            if v.co.z < STONE_TOP + 0.25:
+                lim = PILLAR_HALF - 0.04
+                v.co.x = max(-lim, min(lim, v.co.x))
+                v.co.y = max(-lim, min(lim, v.co.y))
+        me.materials.append(_mat("M_HedgeShell2", (0.03, 0.05, 0.02)))
+        shell = _replace("HedgeShell2", me)
+        rects = load_rects()
+        leaf_mat = _mat("M_Leaf2", (0.2, 0.35, 0.15))
+        lod0, lod1 = scatter_hedge(env, rects, rng)
+        objs = [stone, shell, lod0.build(leaf_mat), lod1.build(leaf_mat)]
+        bpy.data.meshes.remove(env)
+        export(out_path)
+        return {o.name: len(o.data.polygons) for o in objs}
+    finally:
+        COLL = prev_coll

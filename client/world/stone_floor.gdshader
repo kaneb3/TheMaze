@@ -57,8 +57,8 @@ void fragment() {
 	ROUGHNESS = mix(clamp(arm.g * 0.2 + 0.78, 0.0, 1.0), 0.12, puddle);
 	ROUGHNESS = mix(ROUGHNESS, 0.5, wet_patch * (1.0 - puddle) * 0.6);
 	SPECULAR = mix(0.3, 0.5, puddle);
-	AO = arm.r;
-	AO_LIGHT_AFFECT = 0.4;
+	AO = arm.r * 0.4;  // the corridor floor sees about a quarter of the sky
+	AO_LIGHT_AFFECT = 0.1;
 	NORMAL_MAP = mix(texture(normal_tex, uv).rgb, vec3(0.5, 0.5, 1.0), puddle * 0.9);  // standing water is flat
 	NORMAL_MAP_DEPTH = 1.6;
 }

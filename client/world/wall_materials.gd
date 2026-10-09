@@ -4,7 +4,8 @@ extends RefCounted
 ## art/scripts/wall_v2.py). Shared resources so Godot auto-instances every wall segment.
 ##
 ## - WallStone2: stone_wall.gdshader (CC0 photoscan + moss/grime/leaks/lichen); PillarStone: same,
-##   box-mapped
+##   on its own UVs (box-mapping relief stone picks the projection per vertex normal, so bumpy
+##   faces flip between projections mid-triangle and the texture smears into swirls)
 ## - HedgeLeaves2_LOD0 / _LOD1, IvyLeaves2: foliage.gdshader; LOD0 within FOLIAGE_LOD_M, LOD1 beyond
 ## - HedgeShell2: the dark mass inside the hedge; IvyStems2: woody stems
 ## Only near foliage casts lantern shadows (an omni shadow renders every caster 6 times).
@@ -18,7 +19,7 @@ const DIR := "res://client/assets/ring1/"
 static var _stone: ShaderMaterial
 static var _pillar: ShaderMaterial
 static var _leaves: ShaderMaterial
-static var _shell: StandardMaterial3D
+static var _shell: ShaderMaterial
 static var _stems: StandardMaterial3D
 static var _floor: ShaderMaterial
 static var _macro: NoiseTexture2D
@@ -96,8 +97,8 @@ static func _ensure() -> void:
 				var kv := pair.split(":")
 				_stone.set_shader_parameter(kv[0], float(kv[1]))
 	_pillar = _stone.duplicate() as ShaderMaterial
-	_pillar.set_shader_parameter("box_map", true)
-	_pillar.set_shader_parameter("stone_top", 7.3)
+	_pillar.set_shader_parameter("uv_along", true)
+	_pillar.set_shader_parameter("stone_top", 1.9)
 
 	_leaves = ShaderMaterial.new()
 	_leaves.shader = load("res://client/world/foliage.gdshader")
@@ -105,10 +106,9 @@ static func _ensure() -> void:
 	_leaves.set_shader_parameter("leaf_normal", load(DIR + "foliage/leaf_normal.png"))
 	_leaves.set_shader_parameter("leaf_rough", load(DIR + "foliage/leaf_rough.png"))
 
-	_shell = StandardMaterial3D.new()
-	_shell.albedo_color = Color(0.03, 0.045, 0.035)  # reads as deep foliage, not a dark slab, if it shows
-	_shell.roughness = 1.0
-	_shell.metallic_specular = 0.0  # seen at grazing angles from below; must never sheen
+	_shell = ShaderMaterial.new()
+	_shell.shader = load("res://client/world/hedge_shell.gdshader")
+	_shell.set_shader_parameter("noise_tex", macro)
 
 	_stems = StandardMaterial3D.new()
 	_stems.albedo_color = Color(0.13, 0.09, 0.06)

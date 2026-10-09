@@ -33,11 +33,12 @@ uniform vec3 lichen_color : source_color = vec3(0.66, 0.68, 0.60);
 uniform float saturation = 0.62;  // the scan is warmer than the brief's grey stone
 uniform float value = 0.58;  // the reference keeps walls dark even under light
 uniform float moss_amount = 0.55;
-uniform bool box_map = false;  // pillars etc.: tile-scale UVs from local position, picked by face axis
+uniform bool box_map = false;  // old flat pillar: tile-scale UVs from local position, picked by face axis
+uniform bool uv_along = false;  // meshes that wrap a corner (pillar2): masks run along the UVs, not local x
 uniform vec2 tile = vec2(3.04, 3.0);  // metres per texture tile (the photoscan's real size)
 uniform float normal_strength = 0.85;
 uniform float specular_amount = 0.15;
-uniform float ao_direct = 0.25;  // flat AO on direct light (micro-shadowing in light() does the rest)
+uniform float ao_direct = 0.0;  // AO (incl. sky occlusion) is ambient-only; light() micro-shadows the lamp
 uniform float detail_strength = 0.5;  // fine grain from the same scan at ~0.48 m per repeat
 uniform float micro_shadow = 1.0;
 uniform float horizon_depth = 0.02;  // m of relief the height march assumes (art knob)
@@ -51,6 +52,17 @@ varying vec3 v_t;
 varying vec3 v_b;
 varying vec3 v_n;
 varying float v_dist;
+varying float v_sky;
+// Analytic sky occlusion in a 7 m deep, 3.4 m wide corridor: a point at height h sees the share
+// 1 - d/sqrt(d^2 + w^2) of the sky (d = 7 - h). Tops see it all. Stands in for GI's sky shadowing.
+uniform float sky_occl_strength = 1.0;
+uniform float sky_floor = 0.15;  // light bounced off the opposite wall never quite lets it reach 0
+float sky_visibility(float h, float up) {
+	float d = max(7.0 - h, 0.0);
+	float side = 1.0 - d * inversesqrt(d * d + 3.4 * 3.4);
+	return mix(sky_floor, 1.0, mix(side, 1.0, smoothstep(0.2, 0.9, up)));
+}
+
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -60,6 +72,7 @@ void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	local_pos = VERTEX;
 	wall_seed = hash(floor(MODEL_MATRIX[3].xz + 0.5));
+	v_sky = sky_visibility(VERTEX.y, NORMAL.y);
 	if (box_map) {
 		vec3 an = abs(NORMAL);
 		if (an.y > max(an.x, an.z)) {
@@ -77,7 +90,7 @@ void fragment() {
 	float h = texture(height_tex, UV).r;  // 0 deep joint .. 1 proud block face
 	float y = local_pos.y;
 	// coordinate running along the wall, offset per wall so the masks never repeat between walls
-	float along = local_pos.x + wall_seed * 37.0;
+	float along = (uv_along ? UV.x * tile.x : local_pos.x) + wall_seed * 37.0;
 
 	// macro variation: patches of warmer/colder, darker/lighter stone at 1-4 m scale
 	float m1 = texture(macro_noise, vec2(along, y) * 0.23).r;
@@ -141,7 +154,7 @@ void fragment() {
 	ROUGHNESS = rough;
 	METALLIC = 0.0;
 	SPECULAR = specular_amount;
-	AO = arm.r * mix(1.0, 0.75, grime);
+	AO = arm.r * mix(1.0, 0.75, grime) * mix(1.0, v_sky, sky_occl_strength);
 	AO_LIGHT_AFFECT = ao_direct;
 	// whiteout blend of the base normal with a fine detail normal (Barré-Brisebois & Hill)
 	vec3 nb = texture(normal_tex, UV).rgb * 2.0 - 1.0;

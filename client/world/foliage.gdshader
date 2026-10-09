@@ -16,12 +16,24 @@ uniform vec3 aged_tint : source_color = vec3(0.95, 0.80, 0.45);
 uniform float aged_share = 0.08;
 uniform vec3 backlight_color : source_color = vec3(0.10, 0.14, 0.04);
 uniform float wind_strength = 0.004;
+varying float v_sky;
+// Analytic sky occlusion in a 7 m deep, 3.4 m wide corridor: a point at height h sees the share
+// 1 - d/sqrt(d^2 + w^2) of the sky (d = 7 - h). Tops see it all. Stands in for GI's sky shadowing.
+uniform float sky_occl_strength = 1.0;
+uniform float sky_floor = 0.15;  // light bounced off the opposite wall never quite lets it reach 0
+float sky_visibility(float h, float up) {
+	float d = max(7.0 - h, 0.0);
+	float side = 1.0 - d * inversesqrt(d * d + 3.4 * 3.4);
+	return mix(sky_floor, 1.0, mix(side, 1.0, smoothstep(0.2, 0.9, up)));
+}
+
 
 void vertex() {
 	// barely-there night air: the free end of each leaf drifts a few millimetres
 	vec3 wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	float phase = COLOR.g * 6.283 + TIME * (0.7 + COLOR.g * 0.6) + dot(wp.xz, vec2(0.7, 0.4));
 	VERTEX += NORMAL * sin(phase) * wind_strength * (1.0 - COLOR.b * 0.5);
+	v_sky = sky_visibility(VERTEX.y, NORMAL.y);
 }
 
 void fragment() {
@@ -35,9 +47,10 @@ void fragment() {
 	}
 	float ao = mix(0.25, 1.0, COLOR.r);
 	ALBEDO = tex.rgb * tint * mix(0.3, 1.0, COLOR.r * COLOR.r);  // the core falls to near-black
-	AO = ao;
-	AO_LIGHT_AFFECT = 0.6;
-	ALPHA = tex.a;
+	AO = ao * mix(1.0, v_sky, sky_occl_strength);
+	AO_LIGHT_AFFECT = 0.25;
+	// keep leaves solid at distance: alpha-tested mips lose coverage, so boost alpha with the mip level
+	ALPHA = tex.a * (1.0 + max(0.0, textureQueryLod(leaf_albedo, UV).x) * 0.25);
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
 	ALPHA_ANTIALIASING_EDGE = 0.3;
 	ALPHA_TEXTURE_COORDINATE = UV * vec2(textureSize(leaf_albedo, 0));
