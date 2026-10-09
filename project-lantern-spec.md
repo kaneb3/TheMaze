@@ -800,7 +800,9 @@ Use migrations (e.g. `node-pg-migrate` or plain SQL files with a tiny runner).
 
 **Out of the slice:** rings ≥ 2, the pacing service (§10.2–10.6), settled rings (§8.9), depot lag (§18 Q13), other ring themes, Steam login and achievements (dev login only), behaviour detection (§12.3). Trust (§12.4) is simplified to account age plus confirmed contributions. The core anti-cheat guarantees (server-authoritative movement, fog invariant, validation, rate limits) **are** in.
 
-**Art sourcing:** CC0 assets only (e.g. Poly Haven, ambientCG, Kenney), recorded in `client/ASSETS.md` with source and licence; plus hand-built Godot geometry where needed (the Lighthouse).
+**Art direction (decided 2026-10-09):** proper 3D, atmospheric and **almost horror**: dense fog that the lanterns visibly **pierce** (volumetric fog + light shafts), deep darkness outside the light, warm amber flame light against cold blue-grey dusk. **Semi-realistic but "gamified"**: believable materials (weathered stone, damp hedge, aged brass, soot-stained glass) with readable, slightly exaggerated shapes and silhouettes, chunky proportions, and strong warm/cold contrast so gameplay information (lit vs unlit, levers, plates, gates) always reads at a glance. Not photoreal, not cartoon.
+
+**Art production:** assets are **modelled in Blender** (via the Blender MCP connection), with procedural or CC0 textures (e.g. Poly Haven, ambientCG), and exported as **glTF** into `client/assets/`. Every external texture/asset is recorded in `client/ASSETS.md` with source and licence. Blender source files live in `art/` (with a `.gdignore`). A **look-dev scene** in Godot (fog, lantern light, a few wall modules) is built early, so the mood is settled before the slice's gameplay milestones lean on it.
 
 **Slice milestones** (the M-numbers show which full-game acceptance criteria apply)
 | # | Milestone | Scope |
