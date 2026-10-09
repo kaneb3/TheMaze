@@ -79,7 +79,7 @@ You and thousands of strangers stand at the edge of an impossibly large, dark la
 
 ### 2.2 Explicitly rejected (do NOT implement)
 - ❌ **Voice chat** of any kind
-- ❌ **Daily step / movement limits** or stamina caps
+- ❌ **Daily step / movement limits** or daily stamina/energy caps (the few-second sprint stamina in §7 is a moment-to-moment mechanic, not a play-time limit)
 - ❌ **Rested bonus** / offline-time speed boosts
 - ❌ **Gate timers** (gates open immediately when discovered)
 - ❌ Step donation / bonus lending
@@ -320,7 +320,21 @@ Plus **revealed geometry** (walls of revealed cells) for chunks within `streamRa
 
 ## 7. Movement
 
-- Continuous first-person movement. Walk speed `walkSpeed` (default 2.5 m/s, about 1.6 s per cell). No sprint at MVP (tunable; ask before adding).
+- Continuous first-person movement. Walk speed `walkSpeed` (default 2.5 m/s, about 1.6 s per cell). Strafing is `strafeMultiplier` (0.8) and walking backwards `backMultiplier` (0.7) of that.
+- **Sprint** (added 2026-10-09 at the user's request; §18 Q10): `sprintMultiplier` (1.8, so 4.5 m/s), only while moving mostly forward (forward share ≥ 0.7), limited by stamina (`sprintStaminaS` 6 s, regenerating after 1 s at 0.75 s/s; once exhausted, sprint returns at 1.5 s). An exhausted player drops to walk speed, never slower.
+- **Movement model** (client `client/player/locomotion.gd`, tested by `client/tests/movement_test.gd`; the server mirrors it exactly). Control is quick and crisp; the human feel comes from the camera, footsteps and lantern, never from input lag (research: grounded games that delayed control, e.g. heavy inertia, were widely disliked).
+  - Velocity is split along and across the wish direction. The cross part is always braked, so releasing a strafe key or turning never leaves the player sliding.
+  - Braking: `dv/dt = -(moveDrag·|v| + moveBrake)` (7 /s and 5 m/s²) below walk speed. It reaches exactly zero (walk stop ≈ 0.22 s, 0.17 m). Above walk speed the excess is shed at `runBrake` (11 m/s²), so a sprint stop takes ≈ 0.39 s and 0.8 m.
+  - Acceleration: push-off `accelPush` (18 m/s²) easing to `accelWalk` (7 m/s²) at walk speed (half speed in ≈ 80 ms, full in ≈ 0.22 s). Then `accelSprint` (4.5 m/s²) up to sprint speed (≈ 0.55 s from standing).
+  - Pushing against existing momentum brakes and accelerates together, so a strafe reversal crosses zero in ≈ 0.07 s.
+  - After collision the post-slide velocity is fed back, so walls absorb momentum.
+- **Determinism:** the integrator uses only + − × ÷, `sqrt`, `min`/`max` and the yaw's sin/cos. It runs at a fixed **60 Hz movement substep** on both client and server: the server runs 3 substeps per 20 Hz tick, and inputs are recorded per substep and batched. Yaw is sent quantised to 16 bits, so both sides compute identical sin/cos inputs. Reconciliation tolerates about 1–2 cm, with visual corrections smoothed over 100–200 ms.
+  - **Mirroring rules** (from the 2026-10-09 movement review):
+    - The client runs the **same analytic collision** as the server (circle vs axis-aligned wall segments) instead of the physics engine, because Jolt's `move_and_slide` and an ideal clip differ at grazing angles.
+    - Velocities and positions round to float32 every substep on both sides (`Math.fround` in TypeScript).
+    - Yaw is one canonical 16-bit value, with sin/cos taken from a shared 65,536-entry table rather than the platform maths library.
+    - Wall contacts are remembered for 4 substeps (they flicker tick to tick). A remembered wall only clips motion into it.
+    - `shared/golden/movement-v1.json` (written by `client/tests/movement_test.gd`) is the reference trace the TypeScript mirror must reproduce.
 - Pushing a cart: `cartSpeedMultiplier` (default 0.6).
 - **Darkness:** if the player's current cell is not illuminated (own lantern, lit bitset, ambient, flare), speed is multiplied by `darkSpeedMultiplier` (default 0.5). Lit corridors become fast highways; commuting through the dark costs either oil or time. Multipliers stack.
 - **Client:** sends input state at 20 Hz (move vector, yaw, actions) with sequence numbers; does **client-side prediction**.
@@ -610,7 +624,7 @@ The `/sim` bots go through exactly the same validation as humans, which doubles 
 | Type | Payload |
 |---|---|
 | `hello` | `{ authKind: "dev"|"steam", token, clientVersion }` |
-| `input` | `{ seq, moveX, moveY, yaw, pitch, dt }` (20 Hz) |
+| `input` | `{ seq, steps: [{ moveX, moveY, yaw16, sprint }] ×3, pitch }` (20 Hz; one entry per 60 Hz movement substep, §7) |
 | `lantern` | `{ on: boolean }` |
 | `interact` | `{ targetId }` (cache, lever, camp, cart, bell, plate, hub) |
 | `fastTravel` | `{ nodeId }` |
@@ -636,7 +650,7 @@ The `/sim` bots go through exactly the same validation as humans, which doubles 
 | Type | Payload |
 |---|---|
 | `welcome` | player state, world meta (rings list, themes, travel nodes), server time |
-| `state` | `{ ackSeq, pos, vel, lanternOil, packOil, cartId? }` (10 Hz) |
+| `state` | `{ ackSeq, pos, vel, stamina, exhausted, regenWait, wallMemory, lanternOil, packOil, cartId? }` (10 Hz; everything the movement integrator needs to replay, §7) |
 | `reveal` | `{ ring, cx, cy, cells: [idx...], walls: bytes }`: newly revealed cells + wall bits |
 | `chunkSync` | full revealed geometry for a chunk entering stream radius |
 | `touch` | private walls around the player (darkness collision) |
@@ -730,6 +744,12 @@ Use migrations (e.g. `node-pg-migrate` or plain SQL files with a tiny runner).
 | `chunkSize` | 32 | Cells per side (don't change after launch) |
 | `tickHz` / `stateHz` / `visibilityHz` | 20 / 10 / 5 | |
 | `walkSpeed` | 2.5 m/s | |
+| `strafeMultiplier` / `backMultiplier` | 0.8 / 0.7 | §7 |
+| `sprintMultiplier` / `sprintMinForward` | 1.8 / 0.7 | §7 |
+| `sprintStaminaS` / regen delay / regen rate / resume | 6 s / 1 s / 0.75 s/s / 1.5 s | §7 |
+| `accelPush` / `accelWalk` / `accelSprint` | 18 / 7 / 4.5 m/s² | §7 movement model |
+| `moveDrag` / `moveBrake` / `runBrake` | 7 /s / 5 m/s² / 11 m/s² | §7 movement model |
+| `moveSubstepHz` | 60 | Shared fixed movement step (client and server) |
 | `cartSpeedMultiplier` | 0.6 | |
 | `darkSpeedMultiplier` | 0.5 | Unlit cells (§7) |
 | `playerRadiusM` | 0.4 | |
@@ -897,7 +917,7 @@ Stop and report at the end of each S-milestone.
 7. **Entrances:** 4 by default; is that right for the community feel?
 8. **Player avatars & identity:** *Look decided (2026-10-09):* **Hooded Lamplighters**: long weathered oilskin coats, deep hoods, faces wrapped in scarves (only a glint of eyes), leather gauntlets, and a brass oil canister on the back that visibly shows pack fill. Anonymous, eerie, strong silhouette in fog; customisable via coat colour, scarf pattern and trim. Still open: are names shown above heads?
 9. **Moderation resourcing** for text content (notes, signposts, district names).
-10. **Sprint:** none by default; confirm.
+10. **Sprint:** *Decided (2026-10-09):* yes, forward-only with stamina (§7). Still open: should a sprinting player be louder or more visible to others? Should running out of stamina have a breathing cue (audio needed)?
 11. **Tutorial:** hand-authored antechamber (default) or skipped?
 12. **Late joiners:** default is they start at the entrances and fast-travel to any active camp/hub. Confirm. Also: what does a month-3 buyer do that isn't just commuting?
 13. **Supply-chain depth across rings.** As specified, oil for ring 5 is hauled from the Ring 1 depots through every ring's hubs, which may be far too long. Proposed default: **depots lag one ring**. When ring *k+1* opens, the hubs at ring *k*'s arrival gates become endless depots, so supply chains span about two rings. Confirm before M7.

@@ -1,13 +1,18 @@
 extends CharacterBody3D
 ## First-person controller with a hand-held lantern (look-dev version; the real one gets server
-## prediction/reconciliation in S3). WASD + mouse, F toggles the lantern, Esc frees the mouse.
+## prediction/reconciliation in S3). WASD + mouse, Shift sprints, F toggles the lantern, Esc frees
+## the mouse.
 ##
-## Motion is a weighty physical model (LanternMotion): an inertial arm carrying a hand-damped
-## pendulum, with a real stride cadence and a braced run pose. See lantern_motion.gd.
+## Three layers, tested in client/tests/movement_test.gd (+ wall_slide_test.gd against real physics):
+## - Locomotion: the gameplay integrator (fixed tick, server-mirrorable). Quick, crisp control.
+## - HeadMotion: cosmetic camera driven by the stride (bob, footsteps, gaze, roll, nod, FOV).
+## - LanternMotion: the inertial arm and hand-damped lantern pendulum, locked to the same stride.
+## The body moves on physics ticks; the camera is interpolated between ticks so it never judders.
 
-@export var walk_speed := 2.5  # spec §7 walkSpeed
-@export var debug_fast_multiplier := 2.5  # Shift, look-dev only (the game has no sprint)
 @export var mouse_sensitivity := 0.0022
+@export_range(0.0, 1.0) var bob_scale := 1.0  # accessibility: head bob and nod
+@export_range(0.0, 1.0) var roll_scale := 1.0  # accessibility: strafe/step roll
+@export_range(0.0, 1.0) var fov_scale := 1.0  # accessibility: sprint FOV kick
 @export var lantern_energy := 2.4
 
 const EYE_HEIGHT := 1.65
@@ -20,8 +25,8 @@ const LANTERN_FLAME := 0.098
 const RING_RADIUS := 0.045
 const RING_NORMAL := Vector3(0.3388, 0.0, 0.9409)  # ring plane faces mostly towards the eye
 const VIEWMODEL_LAYER := 1 << 2  # render layer 3: lit by the viewmodel fill only
-const ACCEL := 4.5  # m/s^2: start/stop ramps (people accelerate ~1-4 m/s^2; instant changes kick the lantern)
 const SUBSTEP := 1.0 / 240.0
+const BASE_FOV := 72.0
 
 var _head: Node3D
 var _camera: Camera3D
@@ -34,7 +39,14 @@ var _light: OmniLight3D
 var _time := 0.0
 var _look_accum := Vector2.ZERO  # mouse pixels since the last frame
 var _motion: LanternMotion
+var _loco := Locomotion.new()
+var _view := HeadMotion.new()
 var _sub_accum := 0.0
+var _steps: AudioStreamPlayer
+var _steps_heard := 0
+var _walls := PackedVector2Array()  # walls touched on the last physics tick (for wall sliding)
+var _phys_prev := Vector3.ZERO  # body position at the previous / latest physics tick
+var _phys_cur := Vector3.ZERO
 
 # Living grip (blend shapes on the hand): >0 squeezes, <0 relaxes.
 var _hand_mesh: MeshInstance3D
@@ -70,7 +82,7 @@ func _ready() -> void:
 	add_child(_head)
 	_camera = Camera3D.new()
 	_camera.name = "Camera3D"
-	_camera.fov = 72.0
+	_camera.fov = BASE_FOV
 	_camera.near = 0.03
 	_head.add_child(_camera)
 	_camera.current = true
@@ -167,6 +179,23 @@ func _ready() -> void:
 			_log_path = arg.substr(6)
 	if not screenshot_run:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	# Footsteps (Kenney Impact Sounds, CC0): random variant without repeats, varied pitch/volume.
+	var steps := AudioStreamRandomizer.new()
+	steps.playback_mode = AudioStreamRandomizer.PLAYBACK_RANDOM_NO_REPEATS
+	steps.random_pitch = 1.08
+	steps.random_volume_offset_db = 1.5
+	for i in 5:
+		steps.add_stream(-1, load("res://client/assets/audio/footsteps/footstep_concrete_%03d.ogg" % i))
+	_steps = AudioStreamPlayer.new()
+	_steps.name = "Footsteps"
+	_steps.stream = steps
+	_steps.max_polyphony = 3
+	add_child(_steps)
+	_view.bob_scale = bob_scale
+	_view.roll_scale = roll_scale
+	_view.fov_scale = fov_scale
+	_phys_prev = global_position
+	_phys_cur = global_position
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -194,19 +223,27 @@ func _physics_process(delta: float) -> void:
 	if Input.is_physical_key_pressed(KEY_S): input.y += 1.0
 	if Input.is_physical_key_pressed(KEY_A): input.x -= 1.0
 	if Input.is_physical_key_pressed(KEY_D): input.x += 1.0
-	var fast := Input.is_physical_key_pressed(KEY_SHIFT)
+	var sprint := Input.is_physical_key_pressed(KEY_SHIFT)
 	if _autopilot:
 		var a := _autopilot_step(delta)
 		input = a[0]
-		fast = a[1]
-	var speed := walk_speed * (debug_fast_multiplier if fast else 1.0)
-	var dir := (transform.basis * Vector3(input.x, 0.0, input.y)).normalized()
-	var planar := Vector2(velocity.x, velocity.z).move_toward(Vector2(dir.x, dir.z) * speed, ACCEL * delta)
-	velocity.x = planar.x
-	velocity.z = planar.y
+		sprint = a[1]
+	_phys_prev = global_position
+	_loco.step(delta, input, rotation.y, sprint, 1.0, _walls)
+	velocity.x = _loco.vx
+	velocity.z = _loco.vz
 	if not is_on_floor():
 		velocity.y -= 9.8 * delta
 	move_and_slide()
+	_loco.set_velocity(velocity.x, velocity.z)  # walls absorb momentum
+	_walls = Locomotion.wall_normals(self)
+	_phys_cur = global_position
+
+
+## Call after teleporting the body (fast travel, server correction) so the camera doesn't streak.
+func reset_interpolation() -> void:
+	_phys_prev = global_position
+	_phys_cur = global_position
 
 
 func _process(delta: float) -> void:
@@ -215,12 +252,22 @@ func _process(delta: float) -> void:
 	# view rotation rate this frame (rad/s, positive yaw = turning left)
 	var look_rate := Vector2(-_look_accum.x, -_look_accum.y) * mouse_sensitivity / maxf(delta, 0.001)
 	_look_accum = Vector2.ZERO
+	# Camera: interpolate the body between physics ticks, then add the stride-driven head motion.
+	# The bob is a body motion, so it is applied in the level (yaw) frame, not the mouse-pitched one.
+	var f := Engine.get_physics_interpolation_fraction()
+	_view.update(delta, velocity, global_rotation.y, _loco.sprinting)
+	_head.global_position = _phys_prev.lerp(_phys_cur, f) + Vector3(0.0, EYE_HEIGHT, 0.0) \
+		+ Basis(Vector3.UP, global_rotation.y) * _view.offset
+	_camera.rotation = Vector3(_view.pitch, 0.0, _view.roll)
+	_camera.fov = BASE_FOV + _view.fov_add
+	_play_footsteps(delta)
+
 	_sub_accum += delta
 	while _sub_accum >= SUBSTEP:
 		_sub_accum -= SUBSTEP
-		_motion.step(SUBSTEP, velocity, _camera.global_basis, global_rotation.y, look_rate)
+		_motion.step(SUBSTEP, velocity, _camera.global_basis, global_rotation.y, look_rate,
+			_view.stride_phase, _view.gait, _view.amount)
 
-	_head.position.y = EYE_HEIGHT + _motion.head_bob
 	_hand.position = HAND_POS + _motion.hand_offset
 	_hand.rotation = _motion.hand_rotation
 	var yaw_basis := Basis(Vector3.UP, global_rotation.y)
@@ -230,11 +277,29 @@ func _process(delta: float) -> void:
 
 	_animate_grip(delta, Vector2(velocity.x, velocity.z).length())
 	if _log_path != "":
-		_log.append("%.3f,%.3f,%.2f,%.2f,%.4f,%.4f" % [_time, Vector2(velocity.x, velocity.z).length(), rad_to_deg(_motion.swing.x),
-			rad_to_deg(_motion.swing.y), _hand.position.x - HAND_POS.x, _hand.position.y - HAND_POS.y])
+		var v_side := velocity.dot(global_basis.x)
+		_log.append("%.3f,%.3f,%.2f,%.2f,%.4f,%.4f,%.3f,%.4f,%.3f,%d" % [_time, Vector2(velocity.x, velocity.z).length(),
+			rad_to_deg(_motion.swing.x), rad_to_deg(_motion.swing.y), _hand.position.x - HAND_POS.x,
+			_hand.position.y - HAND_POS.y, v_side, _view.offset.y, rad_to_deg(_view.roll), _view.footsteps])
 
 
-## Look-dev autopilot: idle 1 s, walk 3 s, stop 2 s, quick 90 deg turn, idle 2 s, sprint 3 s, stop 3 s.
+## One sound per footfall, locked to the camera's stride. Running lands harder; a stop ends with
+## the quiet closing step of the trailing foot.
+func _play_footsteps(_delta: float) -> void:
+	if _view.footsteps == _steps_heard:
+		return
+	_steps_heard = _view.footsteps
+	if _view.soft_step:
+		_steps.volume_db = -19.0
+		_steps.pitch_scale = 1.08
+	else:
+		_steps.volume_db = lerpf(-13.0, -7.0, _view.gait) + (0.0 if _view.last_foot == 0 else -1.0)
+		_steps.pitch_scale = lerpf(1.0, 0.92, _view.gait)
+	_steps.play()
+
+
+## Look-dev autopilot: idle 1 s, walk 3 s, stop 2 s, quick 90 deg turn, idle 2 s, sprint 3 s, stop 3 s,
+## mouse scanning 3 s, idle 2 s, strafe right 1.5 s, reverse left 1.5 s, stop.
 func _autopilot_step(delta: float) -> Array:
 	_auto_t += delta
 	var t := _auto_t
@@ -254,9 +319,11 @@ func _autopilot_step(delta: float) -> Array:
 		var step := rate * delta
 		rotate_y(-step)
 		_look_accum.x += step / mouse_sensitivity
-	if t >= 19.4 and _log_path != "":
+	if t >= 19.4 and t < 20.9: input.x = 1.0
+	if t >= 20.9 and t < 22.4: input.x = -1.0
+	if t >= 24.4 and _log_path != "":
 		var f := FileAccess.open(_log_path, FileAccess.WRITE)
-		f.store_line("t,speed,swing_fwd_deg,swing_side_deg,hand_dx,hand_dy")
+		f.store_line("t,speed,swing_fwd_deg,swing_side_deg,hand_dx,hand_dy,v_side,cam_y,roll_deg,footsteps")
 		for line in _log: f.store_line(line)
 		f.close()
 		_log_path = ""
@@ -283,10 +350,12 @@ func _animate_grip(delta: float, ground_speed: float) -> void:
 	var target := clampf(relax + swing_tension + pulse + start_stop, -1.0, 1.0)
 	if _forced_grip != INF:
 		target = _forced_grip
-	# critically damped spring so the fingers ease rather than snap
+	# critically damped spring so the fingers ease rather than snap (sub-stepped: stable on hitches)
 	var k := 60.0
-	_grip_vel += (k * (target - _grip) - 2.0 * sqrt(k) * _grip_vel) * delta
-	_grip += _grip_vel * delta
+	var n := ceili(delta / (1.0 / 240.0))
+	for i in n:
+		_grip_vel += (k * (target - _grip) - 2.0 * sqrt(k) * _grip_vel) * delta / n
+		_grip += _grip_vel * delta / n
 	if _squeeze_idx >= 0:
 		_hand_mesh.set_blend_shape_value(_squeeze_idx, clampf(_grip, 0.0, 1.0))
 	if _relax_idx >= 0:

@@ -11,8 +11,23 @@ export const game = {
   stateHz: 10,
   visibilityHz: 5,
 
-  // Movement
+  // Movement (spec §7; mirrored by client/player/locomotion.gd until the client receives these in `welcome`)
   walkSpeed: 2.5, // m/s
+  strafeMultiplier: 0.8,
+  backMultiplier: 0.7,
+  sprintMultiplier: 1.8,
+  sprintMinForward: 0.7, // forward share of the wish direction needed to sprint
+  sprintStaminaS: 6,
+  sprintRegenDelayS: 1,
+  sprintRegenRate: 0.75, // stamina seconds per second
+  sprintResumeS: 1.5,
+  accelPush: 18, // m/s^2 from standing, easing to accelWalk at walk speed
+  accelWalk: 7,
+  accelSprint: 4.5,
+  moveDrag: 7, // 1/s
+  moveBrake: 5, // m/s^2
+  runBrake: 11, // m/s^2 above walk speed
+  moveSubstepHz: 60,
   cartSpeedMultiplier: 0.6,
   darkSpeedMultiplier: 0.5,
   playerRadiusM: 0.4,

@@ -1,7 +1,7 @@
 extends Node3D
 ## Look-dev scene: walk a real 12x12 patch of the vertical-slice Ring 1 in fog, to settle the
 ## art direction (spec §16.0) before the gameplay milestones. Open this scene and press F6.
-##   WASD walk · mouse look · Shift fast-walk (look-dev only; the game has no sprint) · F lantern · F11 fullscreen · Esc frees the mouse
+##   WASD walk · mouse look · Shift sprint · F lantern · F11 fullscreen · Esc frees the mouse
 ## Look-dev only: the real client never builds maze geometry itself (spec §0.6).
 ##
 ## Optional: `-- --shot=<path.png>` saves a screenshot after a few seconds and quits.
