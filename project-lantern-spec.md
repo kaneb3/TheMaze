@@ -163,7 +163,7 @@ docker-compose.yml   (postgres for local dev)
 ### 5.1 Units & coordinates
 | Term | Definition |
 |---|---|
-| **Cell** | One square of the maze grid. **4 m × 4 m** in world space. Wall height ~4.5 m. |
+| **Cell** | One square of the maze grid. **4 m × 4 m** in world space. Wall height **7 m** (`wallHeightM`), so corridors feel like deep canyons. |
 | **Chunk** | **32 × 32 cells** (128 m square). Unit of generation, streaming, and reveal storage. |
 | **Ring** | A square annulus of chunks with its **own coordinate frame**, centred on the origin. Identified by `ringIndex` (1 = outermost). |
 | **Position** | `(ringIndex, x, y)`, where `x, y` are float cell coordinates in that ring's frame. Cell = `floor(x), floor(y)`. Chunk = `floor(cell / 32)`. |
@@ -726,7 +726,7 @@ Use migrations (e.g. `node-pg-migrate` or plain SQL files with a tiny runner).
 | Key | Default | Notes |
 |---|---|---|
 | `cellSizeM` | 4 | Shared with client via `welcome` |
-| `wallHeightM` | 4.5 | |
+| `wallHeightM` | 7 | Raised from 4.5 after look-dev (2026-10-09) |
 | `chunkSize` | 32 | Cells per side (don't change after launch) |
 | `tickHz` / `stateHz` / `visibilityHz` | 20 / 10 / 5 | |
 | `walkSpeed` | 2.5 m/s | |

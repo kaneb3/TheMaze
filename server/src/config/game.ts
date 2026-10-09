@@ -5,7 +5,7 @@ import type { RingGenParams } from '../maze/types.js';
 export const game = {
   // World & units
   cellSizeM: 4,
-  wallHeightM: 4.5,
+  wallHeightM: 7,
   chunkSize: 32, // don't change after launch
   tickHz: 20,
   stateHz: 10,
