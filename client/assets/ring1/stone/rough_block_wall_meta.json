@@ -1,0 +1,69 @@
+{
+ "source": "https://polyhaven.com/a/rough_block_wall",
+ "license": "CC0 (Poly Haven, all assets CC0)",
+ "info": {
+  "scale": "1.5M x 1.5M",
+  "type": 1,
+  "date_published": 1560892113,
+  "name": "Rough Block Wall",
+  "old_id": 212,
+  "categories": [
+   "man made",
+   "outdoor",
+   "brick",
+   "wall"
+  ],
+  "authors": {
+   "Rob Tuytel": "All"
+  },
+  "dimensions": [
+   3039.9999618530273,
+   3000
+  ],
+  "max_resolution": [
+   8192,
+   8192
+  ],
+  "files_hash": "736417e028bef4127e8f3cfd0577a79424097f65",
+  "tags": [
+   "rough",
+   "uneven",
+   "stone",
+   "blocks",
+   "patterned",
+   "weathered",
+   "jagged",
+   "precast",
+   "cast stone blocks",
+   "exterior",
+   "dungeon",
+   "fortress walls",
+   "stonework",
+   "masonry",
+   "cladding",
+   "rock facade"
+  ],
+  "description": "Free 8K texture: rough, uneven cast-stone block wall with jagged faces, pronounced chisel marks, deep mortar joints and warm gray-brown weathered tones.",
+  "category_id": "095573e6-25a6-59a5-b88e-6911bbfbc472",
+  "category": "Brick & Block/Concrete Block & Paver/Cast-Stone Block",
+  "attributes": {
+   "surface_use": "wall",
+   "condition": [
+    "weathered"
+   ],
+   "origin": "man_made",
+   "setting": "outdoor"
+  },
+  "img_version": "17563b0c",
+  "download_count": 86088,
+  "thumbnail_url": "https://cdn.polyhaven.com/asset_img/thumbs/rough_block_wall.png?width=256&height=256&format=webp&v=17563b0c"
+ },
+ "files": [
+  "rough_block_wall_diff_2k.jpg",
+  "rough_block_wall_nor_gl_2k.png",
+  "rough_block_wall_rough_2k.jpg",
+  "rough_block_wall_ao_2k.jpg",
+  "rough_block_wall_disp_2k.png",
+  "rough_block_wall_arm_2k.jpg"
+ ]
+}

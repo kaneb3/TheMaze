@@ -147,15 +147,17 @@ func _ready() -> void:
 
 	_light = OmniLight3D.new()
 	_light.name = "LanternLight"
-	_light.light_color = Color(1.0, 0.68, 0.42)
+	_light.light_color = Color(1.0, 0.72, 0.48)  # ~2300 K: warm, but stone still reads grey
 	_light.light_energy = lantern_energy
 	_light.omni_range = 11.0
 	_light.omni_attenuation = 1.25
 	_light.shadow_enabled = true
+	_light.omni_shadow_mode = OmniLight3D.SHADOW_DUAL_PARABOLOID  # 2 shadow passes instead of 6 (dense foliage)
 	_light.shadow_bias = 0.04
 	_light.shadow_normal_bias = 1.5
 	_light.light_volumetric_fog_energy = 0.12
 	_light.light_size = 0.06
+	_light.light_specular = 0.25  # the flame is almost at the eye: full specular makes every surface glisten
 	_light.position = _lantern.position + Vector3(0.0, LANTERN_FLAME * LANTERN_SCALE, 0.0)
 	_rig.add_child(_light)
 	var fill := LanternLighting.rig(_lantern, _light, Vector3(0.0, LANTERN_FLAME, 0.0))

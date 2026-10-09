@@ -1,0 +1,28 @@
+{
+ "source": "https://ambientcg.com/a/LeafSet017",
+ "download": "https://ambientcg.com/get?file=LeafSet017_2K-JPG.zip",
+ "license": "CC0 1.0 (ambientCG, all assets CC0)",
+ "dims_cm": [
+  25,
+  25
+ ],
+ "tags": [
+  "17",
+  "ivy",
+  "leaf",
+  "leaves",
+  "set",
+  "vine"
+ ],
+ "files": [
+  "LeafSet017_2K-JPG_Color.jpg",
+  "LeafSet017_2K-JPG_Displacement.jpg",
+  "LeafSet017_2K-JPG_NormalDX.jpg",
+  "LeafSet017_2K-JPG_NormalGL.jpg",
+  "LeafSet017_2K-JPG_Opacity.jpg",
+  "LeafSet017_2K-JPG_Roughness.jpg",
+  "LeafSet017_2K-JPG.mtlx",
+  "LeafSet017_2K-JPG.tres",
+  "LeafSet017.png"
+ ]
+}

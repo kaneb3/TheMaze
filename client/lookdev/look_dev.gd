@@ -55,7 +55,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED if full else DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
 
 
+var _fps_t := 0.0
+
+
 func _process(delta: float) -> void:
+	if _args.has("fps"):  # look-dev: --fps prints the frame rate once a second
+		_fps_t += delta
+		if _fps_t >= 1.0:
+			_fps_t = 0.0
+			print("fps ", Engine.get_frames_per_second(), "  draws ", RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME), "  prims ", RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
 	_time += delta
 	for f in _flickers:
 		var light: OmniLight3D = f[0]
@@ -174,9 +182,8 @@ func _build_environment(maze: Dictionary) -> void:
 # maze: walls on closed edges, pillars on every grid corner they touch, a floor tile per cell
 
 func _build_maze(maze: Dictionary) -> void:
-	var wall_scene: PackedScene = load(ASSETS + "wall.glb")
+	var wall_scenes: Array[PackedScene] = [load(ASSETS + "wall2_a.glb"), load(ASSETS + "wall2_b.glb"), load(ASSETS + "wall2_c.glb")]
 	var pillar_scene: PackedScene = load(ASSETS + "pillar.glb")
-	var floor_scene: PackedScene = load(ASSETS + "floor.glb")
 	var root := Node3D.new()
 	root.name = "Maze"
 	add_child(root)
@@ -188,7 +195,7 @@ func _build_maze(maze: Dictionary) -> void:
 	for key in _walls:
 		var x: int = key.x
 		var y: int = key.y
-		var wall := wall_scene.instantiate() as Node3D
+		var wall := wall_scenes[_hash(x * 13 + 1, y * 7 + key.z * 3) % wall_scenes.size()].instantiate() as Node3D
 		var pos: Vector3
 		var yaw := 0.0
 		if key.z == 0:  # east edge: runs along Z
@@ -206,7 +213,15 @@ func _build_maze(maze: Dictionary) -> void:
 		wall.rotation.y = yaw
 		root.add_child(wall)
 		_box(body, pos, yaw, Vector3(CELL, WALL_HEIGHT, 0.62))
-		_fix_materials(wall)
+		WallMaterials.apply(wall)
+		_occluder(root, pos, yaw, Vector3(CELL - 1.0, WALL_HEIGHT - 0.4, 0.3))
+		var hm := _hash(x * 5 + 3, y * 11 + key.z)
+		if hm % 5 == 0:  # roughly one wall in five carries a mark
+			var kinds := ["tally", "tally", "daisy", "daisy", "burn", "burn", "initials", "arrow"]
+			var mark := WallMarkings.add(wall, kinds[(hm / 5) % kinds.size()], 1 if (hm / 40) % 2 == 0 else -1,
+				((hm / 80) % 100) / 100.0 * 2.0 - 1.0, 0.8 + ((hm / 8000) % 50) / 100.0, (hm / 3) % 2 == 0)
+			if _args.has("marks"):  # look-dev: --marks lists where the marks are, for screenshots
+				print("mark ", mark.name, " at ", mark.global_position, " facing ", mark.global_basis.y)
 
 	for p in pillars:
 		var pillar := pillar_scene.instantiate() as Node3D
@@ -214,20 +229,32 @@ func _build_maze(maze: Dictionary) -> void:
 		pillar.rotation.y = (_hash(p.x, p.y) % 4) * PI / 2.0
 		root.add_child(pillar)
 		_box(body, pillar.position, 0.0, Vector3(0.95, WALL_HEIGHT, 0.95))
+		_occluder(root, pillar.position, 0.0, Vector3(0.8, WALL_HEIGHT - 0.4, 0.8))
+		WallMaterials.apply(pillar)
 
-	for y in _h:
-		for x in _w:
-			var tile := floor_scene.instantiate() as Node3D
-			tile.position = _cell_center(Vector2i(x, y))
-			tile.rotation.y = (_hash(x * 3, y * 5) % 4) * PI / 2.0
-			root.add_child(tile)
-	# entrance approach: a few tiles outside the maze so the opening isn't a void
-	for e in maze.entrances:
-		for k in range(1, 3):
-			var tile := floor_scene.instantiate() as Node3D
-			tile.position = _cell_center(Vector2i(int(e[0]), int(e[1]) + 1 - k))
-			root.add_child(tile)
+	# One world-mapped plane for the whole floor (photoscan setts, stone_floor.gdshader), with a
+	# margin so the entrance approach isn't a void.
+	var ground := MeshInstance3D.new()
+	ground.name = "Floor"
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(_w * CELL + 24.0, _h * CELL + 24.0)
+	ground.mesh = plane
+	ground.position = Vector3(_w * CELL * 0.5, 0.0, _h * CELL * 0.5)
+	ground.material_override = WallMaterials.floor_material()
+	root.add_child(ground)
 	_box(body, Vector3(_w * CELL * 0.5, -0.5, _h * CELL * 0.5), 0.0, Vector3(_w * CELL + 40.0, 1.0, _h * CELL + 40.0))
+
+
+## Occlusion culling: a box inside the wall's core (clear of the stone faces and the foliage, so
+## nothing on the surface culls itself) hides everything behind it.
+func _occluder(parent: Node3D, pos: Vector3, yaw: float, size: Vector3) -> void:
+	var occ := OccluderInstance3D.new()
+	var box := BoxOccluder3D.new()
+	box.size = size
+	occ.occluder = box
+	occ.position = pos + Vector3(0.0, size.y * 0.5, 0.0)
+	occ.rotation.y = yaw
+	parent.add_child(occ)
 
 
 func _box(body: StaticBody3D, pos: Vector3, yaw: float, size: Vector3) -> void:
@@ -326,6 +353,9 @@ func _add_light(parent: Node3D, pos: Vector3, color: Color, energy: float, rng: 
 	l.omni_attenuation = 1.3
 	l.shadow_enabled = true
 	l.shadow_normal_bias = 1.5
+	# Static lights: stone and props cast, foliage doesn't (an omni shadow redraws every caster six
+	# times; the player's lantern keeps the leaf shadows, where they matter).
+	l.shadow_caster_mask = 0xFFFFF & ~WallMarkings.FOLIAGE_LAYER
 	l.light_size = 0.08
 	l.light_volumetric_fog_energy = fog
 	parent.add_child(l)

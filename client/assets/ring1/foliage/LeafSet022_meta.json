@@ -1,0 +1,28 @@
+{
+ "source": "https://ambientcg.com/a/LeafSet022",
+ "download": "https://ambientcg.com/get?file=LeafSet022_2K-JPG.zip",
+ "license": "CC0 1.0 (ambientCG, all assets CC0)",
+ "dims_cm": [
+  25,
+  25
+ ],
+ "tags": [
+  "22",
+  "green",
+  "leaf",
+  "leaves",
+  "set"
+ ],
+ "files": [
+  "LeafSet022_2K-JPG_Color.jpg",
+  "LeafSet022_2K-JPG_Displacement.jpg",
+  "LeafSet022_2K-JPG_NormalDX.jpg",
+  "LeafSet022_2K-JPG_NormalGL.jpg",
+  "LeafSet022_2K-JPG_Opacity.jpg",
+  "LeafSet022_2K-JPG_Roughness.jpg",
+  "LeafSet022_2K-JPG_Scattering.jpg",
+  "LeafSet022_2K-JPG.mtlx",
+  "LeafSet022_2K-JPG.tres",
+  "LeafSet022.png"
+ ]
+}

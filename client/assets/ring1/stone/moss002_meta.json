@@ -1,0 +1,26 @@
+{
+ "source": "https://ambientcg.com/a/Moss002",
+ "download": "https://ambientcg.com/get?file=Moss002_2K-JPG.zip",
+ "license": "CC0 1.0 (ambientCG, all assets CC0)",
+ "dims_cm": [
+  0,
+  0
+ ],
+ "tags": [
+  "2",
+  "green",
+  "moss",
+  "mossy"
+ ],
+ "files": [
+  "Moss002_2K-JPG_AmbientOcclusion.jpg",
+  "Moss002_2K-JPG_Color.jpg",
+  "Moss002_2K-JPG_Displacement.jpg",
+  "Moss002_2K-JPG_NormalDX.jpg",
+  "Moss002_2K-JPG_NormalGL.jpg",
+  "Moss002_2K-JPG_Roughness.jpg",
+  "Moss002_2K-JPG.mtlx",
+  "Moss002_2K-JPG.tres",
+  "Moss002.png"
+ ]
+}

@@ -1,0 +1,29 @@
+{
+ "source": "https://ambientcg.com/a/Leaking004",
+ "download": "https://ambientcg.com/get?file=Leaking004_2K-PNG.zip",
+ "license": "CC0 1.0 (ambientCG, all assets CC0)",
+ "dims_cm": [
+  0,
+  0
+ ],
+ "tags": [
+  "4",
+  "leaking",
+  "moisture",
+  "smear",
+  "smudge",
+  "streaks",
+  "wet"
+ ],
+ "files": [
+  "Leaking004_2K-PNG_Color.png",
+  "Leaking004_2K-PNG_Displacement.png",
+  "Leaking004_2K-PNG_NormalDX.png",
+  "Leaking004_2K-PNG_NormalGL.png",
+  "Leaking004_2K-PNG_Opacity.png",
+  "Leaking004_2K-PNG_Roughness.png",
+  "Leaking004_2K-PNG.mtlx",
+  "Leaking004_2K-PNG.tres",
+  "Leaking004.png"
+ ]
+}
