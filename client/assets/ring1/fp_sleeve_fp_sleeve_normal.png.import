@@ -2,24 +2,23 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://brruvrajy4r2t"
-path.s3tc="res://.godot/imported/fp_arm_fp_arm_orm.png-fa812cea0d1dc52ab3647fe113abd833.s3tc.ctex"
+uid="uid://bpr5s0jk83ps"
+path="res://.godot/imported/fp_sleeve_fp_sleeve_normal.png-8e65706f4b43f2d17ab2cfe159582f55.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
+"vram_texture": false
 }
 generator_parameters={
-"md5": "4a840f9015004f77dfa53481f5866568"
+"md5": "b07f16e180c8f9f30f3b6cf84ff61dfc"
 }
 
 [deps]
 
-source_file="res://client/assets/ring1/fp_arm_fp_arm_orm.png"
-dest_files=["res://.godot/imported/fp_arm_fp_arm_orm.png-fa812cea0d1dc52ab3647fe113abd833.s3tc.ctex"]
+source_file="res://client/assets/ring1/fp_sleeve_fp_sleeve_normal.png"
+dest_files=["res://.godot/imported/fp_sleeve_fp_sleeve_normal.png-8e65706f4b43f2d17ab2cfe159582f55.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -41,4 +40,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1

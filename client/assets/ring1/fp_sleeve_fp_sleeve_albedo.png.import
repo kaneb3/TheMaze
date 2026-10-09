@@ -2,24 +2,23 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://brruvrajy4r2t"
-path.s3tc="res://.godot/imported/fp_arm_fp_arm_orm.png-fa812cea0d1dc52ab3647fe113abd833.s3tc.ctex"
+uid="uid://bfckva6onyhyl"
+path="res://.godot/imported/fp_sleeve_fp_sleeve_albedo.png-0128844c3278aac8b1428aecdffd7df9.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
+"vram_texture": false
 }
 generator_parameters={
-"md5": "4a840f9015004f77dfa53481f5866568"
+"md5": "e6b92e80fdc22d0e8ac73341091e902c"
 }
 
 [deps]
 
-source_file="res://client/assets/ring1/fp_arm_fp_arm_orm.png"
-dest_files=["res://.godot/imported/fp_arm_fp_arm_orm.png-fa812cea0d1dc52ab3647fe113abd833.s3tc.ctex"]
+source_file="res://client/assets/ring1/fp_sleeve_fp_sleeve_albedo.png"
+dest_files=["res://.godot/imported/fp_sleeve_fp_sleeve_albedo.png-0128844c3278aac8b1428aecdffd7df9.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -41,4 +40,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1

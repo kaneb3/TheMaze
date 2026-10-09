@@ -12,11 +12,16 @@ extends CharacterBody3D
 @export var lantern_energy := 2.4
 
 const EYE_HEIGHT := 1.65
-const HAND_POS := Vector3(0.22, -0.02, -0.46)  # the fist, relative to the eye
+# Left hand, lower-left of view (Amnesia / Pathologic framing). Values come from the Blender layout in
+# art/characters.blend (HandWork scene, art/scripts/fp_viewmodel.py): the arm model's origin is the grip.
+const HAND_POS := Vector3(-0.28, -0.04, -0.39)  # the grip, relative to the eye
 const LANTERN_SCALE := 0.5
-const LANTERN_CHAIN := 0.49
+const LANTERN_HANG := -0.2907  # lantern origin below the grip (through the carrying ring)
 const LANTERN_FLAME := 0.098
-const PENDULUM_LENGTH := 0.24  # pivot to the lantern's centre of mass
+const RING_RADIUS := 0.045
+const RING_NORMAL := Vector3(0.3388, 0.0, 0.9409)  # ring plane faces mostly towards the eye
+const VIEWMODEL_LAYER := 1 << 2  # render layer 3: lit by the viewmodel fill only
+const PENDULUM_LENGTH := 0.30  # pivot to the lantern's centre of mass
 const PENDULUM_DAMPING := 1.8
 const PENDULUM_LIMIT := 0.7
 
@@ -65,15 +70,36 @@ func _ready() -> void:
 	_hand.position = HAND_POS
 	_camera.add_child(_hand)
 
-	_arm = (load("res://client/assets/ring1/fp_arm.glb") as PackedScene).instantiate()
+	_arm = Node3D.new()
+	_arm.name = "Arm"
 	_hand.add_child(_arm)
+	for part in ["fp_arm", "fp_sleeve"]:
+		_arm.add_child((load("res://client/assets/ring1/%s.glb" % part) as PackedScene).instantiate())
 
 	_rig = Node3D.new()
 	_rig.name = "LanternRig"
 	_hand.add_child(_rig)
-	_lantern = (load("res://client/assets/ring1/lantern.glb") as PackedScene).instantiate()
+	# One dark-iron carrying ring hooked by the fingers; the lantern hangs from it.
+	var ring := MeshInstance3D.new()
+	ring.name = "CarryRing"
+	var torus := TorusMesh.new()
+	torus.inner_radius = RING_RADIUS - 0.0038
+	torus.outer_radius = RING_RADIUS + 0.0038
+	torus.rings = 48
+	torus.ring_segments = 10
+	var iron := StandardMaterial3D.new()
+	iron.albedo_color = Color(0.09, 0.075, 0.06)
+	iron.metallic = 1.0
+	iron.roughness = 0.32
+	torus.material = iron
+	ring.mesh = torus
+	ring.position = Vector3(0.0, -RING_RADIUS + 0.004, 0.0)
+	ring.quaternion = Quaternion(Vector3.UP, RING_NORMAL.normalized())  # torus axis -> ring normal (plane stands vertical)
+	_rig.add_child(ring)
+	_lantern = (load("res://client/assets/ring1/fp_lantern.glb") as PackedScene).instantiate()
 	_lantern.scale = Vector3.ONE * LANTERN_SCALE
-	_lantern.position = Vector3(0.0, -LANTERN_CHAIN * LANTERN_SCALE, 0.0)
+	_lantern.position = Vector3(0.0, LANTERN_HANG, 0.0)
+	_lantern.rotation.y = deg_to_rad(25.0)
 	_rig.add_child(_lantern)
 
 	_light = OmniLight3D.new()
@@ -90,12 +116,28 @@ func _ready() -> void:
 	_light.position = _lantern.position + Vector3(0.0, LANTERN_FLAME * LANTERN_SCALE, 0.0)
 	_rig.add_child(_light)
 	var fill := LanternLighting.rig(_lantern, _light, Vector3(0.0, LANTERN_FLAME, 0.0))
-	fill.omni_range = 1.0  # also lights the glove from below
-	fill.light_energy = 0.45
-	for node in _arm.find_children("*", "MeshInstance3D", true, false):
+	fill.omni_range = 1.0  # also lights the glove, ring and cuff from below
+	fill.light_energy = 0.6
+	fill.light_color = Color(1.0, 0.6, 0.3)
+	# The flame hangs ~27 cm below the fist, so the lantern light can warm the glove's underside
+	# directly; the arm just must not cast shadows over the view.
+	for node in _arm.find_children("*", "MeshInstance3D", true, false) + [ring]:
 		var mi := node as MeshInstance3D
-		mi.layers = LanternLighting.LANTERN_LAYER  # lit by the soft fill, not blasted by the lantern
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.layers |= VIEWMODEL_LAYER
+
+	# Viewmodel fill: a soft warm light that touches only the arm (standard first-person practice) so
+	# the glove's leather, seams and knuckles stay readable without brightening the world.
+	var vm_fill := OmniLight3D.new()
+	vm_fill.name = "ViewmodelFill"
+	vm_fill.light_color = Color(1.0, 0.8, 0.62)
+	vm_fill.light_energy = 0.4
+	vm_fill.omni_range = 0.9
+	vm_fill.light_cull_mask = VIEWMODEL_LAYER
+	vm_fill.shadow_enabled = false
+	vm_fill.light_volumetric_fog_energy = 0.0
+	vm_fill.position = Vector3(0.12, 0.22, 0.05)  # above and to the right of the fist
+	_hand.add_child(vm_fill)
 
 	var screenshot_run := false
 	for arg in OS.get_cmdline_user_args():
