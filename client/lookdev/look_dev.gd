@@ -25,12 +25,14 @@ var _noise := FastNoiseLite.new()
 var _time := 0.0
 var _shot_path := ""
 var _shot_frames := 0
+var _args := {}  # look-dev camera overrides: --cell=x,y --yaw=deg --pitch=deg --offset=dx,dz
 
 
 func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
-		if arg.begins_with("--shot="):
-			_shot_path = arg.substr(7)
+		if arg.begins_with("--") and "=" in arg:
+			_args[arg.substr(2, arg.find("=") - 2)] = arg.substr(arg.find("=") + 1)
+	_shot_path = _args.get("shot", "")
 	_noise.frequency = 1.0
 	var maze := _load_maze()
 	_build_environment(maze)
@@ -117,6 +119,7 @@ func _build_environment(maze: Dictionary) -> void:
 	env.volumetric_fog_length = 56.0
 	env.volumetric_fog_ambient_inject = 0.35
 	env.volumetric_fog_sky_affect = 0.35
+	get_viewport().positional_shadow_atlas_size = 8192
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -270,7 +273,7 @@ func _place_props(maze: Dictionary) -> void:
 			camp.rotation.y = atan2(float(d.x), float(d.y))
 			add_child(camp)
 			_fix_materials(camp)
-			_add_light(camp, CAMP_FIRE, Color(1.0, 0.45, 0.15), 3.0, 11.0, 0.6)
+			_add_light(camp, CAMP_FIRE, Color(1.0, 0.5, 0.2), 2.6, 10.0, 0.2)
 			break
 
 	# Lantern posts: every few cells along the route in, against a wall, arm towards the cell centre.
@@ -295,7 +298,8 @@ func _place_props(maze: Dictionary) -> void:
 		lantern.position = POST_HOOK - Vector3(0.0, LANTERN_CHAIN, 0.0)
 		post.add_child(lantern)
 		_fix_materials(lantern)
-		_add_light(post, lantern.position + Vector3(0.0, LANTERN_FLAME, 0.0), Color(1.0, 0.55, 0.24), 1.6, 8.0, 0.4)
+		var light := _add_light(post, lantern.position + Vector3(0.0, LANTERN_FLAME, 0.0), Color(1.0, 0.6, 0.32), 1.4, 8.0, 0.25)
+		LanternLighting.rig(lantern, light, Vector3(0.0, LANTERN_FLAME, 0.0))
 
 
 func _add_light(parent: Node3D, pos: Vector3, color: Color, energy: float, rng: float, fog: float) -> OmniLight3D:
@@ -306,7 +310,8 @@ func _add_light(parent: Node3D, pos: Vector3, color: Color, energy: float, rng: 
 	l.omni_range = rng
 	l.omni_attenuation = 1.3
 	l.shadow_enabled = true
-	l.light_size = 0.15
+	l.shadow_normal_bias = 1.5
+	l.light_size = 0.08
 	l.light_volumetric_fog_energy = fog
 	parent.add_child(l)
 	_flickers.append([l, energy, randf() * 100.0])
@@ -323,5 +328,15 @@ func _spawn_player(maze: Dictionary) -> void:
 	var start := Vector2i(int(maze.entrances[0][0]), 0)
 	player.position = _cell_center(start) + Vector3(0.0, 0.05, -1.2)
 	player.rotation.y = PI  # face +Z (south), into the maze
+	if _args.has("cell"):
+		var c: PackedStringArray = _args["cell"].split(",")
+		player.position = _cell_center(Vector2i(int(c[0]), int(c[1]))) + Vector3(0.0, 0.05, 0.0)
+	if _args.has("offset"):
+		var o: PackedStringArray = _args["offset"].split(",")
+		player.position += Vector3(float(o[0]), 0.0, float(o[1]))
+	if _args.has("yaw"):
+		player.rotation.y = deg_to_rad(float(_args["yaw"]))
 	add_child(player)
+	if _args.has("pitch"):
+		player.get_node("Head").rotation.x = deg_to_rad(float(_args["pitch"]))
 	_flickers.append([player.get_node("Head/Camera3D/LanternRig/LanternLight"), player.lantern_energy, 3.0])

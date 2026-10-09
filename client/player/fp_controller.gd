@@ -52,9 +52,6 @@ func _ready() -> void:
 	_lantern.scale = Vector3.ONE * LANTERN_SCALE
 	_lantern.position = Vector3(0.0, -LANTERN_CHAIN * LANTERN_SCALE, 0.0)
 	_rig.add_child(_lantern)
-	for mi in _lantern.find_children("*", "MeshInstance3D", true, false):
-		if mi.name.begins_with("Glass") or mi.name.begins_with("Flame"):
-			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	_light = OmniLight3D.new()
 	_light.name = "LanternLight"
@@ -63,11 +60,13 @@ func _ready() -> void:
 	_light.omni_range = 11.0
 	_light.omni_attenuation = 1.25
 	_light.shadow_enabled = true
-	_light.shadow_bias = 0.03
-	_light.light_volumetric_fog_energy = 0.25
-	_light.light_size = 0.12  # soft shadows from the lantern frame
+	_light.shadow_bias = 0.04
+	_light.shadow_normal_bias = 1.5
+	_light.light_volumetric_fog_energy = 0.12
+	_light.light_size = 0.06
 	_light.position = _lantern.position + Vector3(0.0, LANTERN_FLAME * LANTERN_SCALE, 0.0)
 	_rig.add_child(_light)
+	LanternLighting.rig(_lantern, _light, Vector3(0.0, LANTERN_FLAME, 0.0))
 
 	var screenshot_run := false
 	for arg in OS.get_cmdline_user_args():
