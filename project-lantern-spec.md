@@ -26,7 +26,7 @@
 ## 0. Instructions for Claude Code (read first)
 
 1. **Read this entire document before writing any code.** Design decisions are deliberate, and several "obvious" features were explicitly rejected (see §2.2).
-2. **Work milestone by milestone** (§16). Start with **Milestone 0 and Milestone 1 only**, then stop and summarise what was built, what was tested, and any questions before continuing.
+2. **Work milestone by milestone** (§16). M0 and M1 are done; the current plan is the **vertical slice** (§16.0, S1–S8). Stop at the end of each milestone and summarise what was built, what was tested, and any questions before continuing.
 3. **Every gameplay number is a tunable.** Put all of them in a single config module (`server/src/config/game.ts`) with the defaults from §15. Never hard-code gameplay numbers elsewhere.
 4. **The server is the authority on everything.** The client is a renderer and an input device. If you're unsure where logic belongs, it belongs on the server.
 5. **Determinism is sacred.** Maze generation must produce identical output for the same seed on every machine, forever. Use the specified hash/PRNG (§5.2) and lock it with golden tests.
@@ -768,6 +768,8 @@ Use migrations (e.g. `node-pg-migrate` or plain SQL files with a tiny runner).
 | `kindlingTargetDays` / `kindlingFactor` | 10 / 0.8 | Lighthouse sizing |
 | `lighthouseOilMin` / `lighthouseOilMax` | 5000 / 5000000 | |
 | `ignitionDelayMinutes` / `ignitionWaveSeconds` | 30 / 300 | |
+| `sliceRingShape` / `sliceLighthouseOil` | outer 4, inner 2 / 2000 | Vertical slice only (§16.0) |
+| `sliceRingGenParams` | all features on (narrow 150, plates 80, ...) | Vertical slice only (§16.0) |
 | `markerFadeDays` | 7 | |
 | `chalkPerPlayer` | 200 | |
 | `leadClaimHours` | 2 | |
@@ -784,6 +786,35 @@ Use migrations (e.g. `node-pg-migrate` or plain SQL files with a tiny runner).
 ---
 
 ## 16. Milestones & Acceptance Criteria
+
+### 16.0 Vertical slice (current plan, decided 2026-10-09)
+**Goal:** answer "is this fun together?" with **every game feature** in place, but in **one ring plus the Core** instead of the full expanse. Milestones M0–M1 are done. The slice then runs S1–S8 below. The full-scale milestones (M7 multi-ring pacing, M8 Steam & anti-cheat, the rest of M9, M10) follow the slice.
+
+**World for the slice**
+- `plannedRingCount = 1`: one ring (Ring 1) whose active gates lead straight to the **Core**. Same code paths as the full game; the world is just one ring deep.
+- **Ring 1 enables every generation feature** (narrow doors, coarse lever doors, twin-plate doors, levers), overriding the normal "ring ≥ 2/3" defaults: `sliceRingGenParams`.
+- Ring size is a fixed tunable, `sliceRingShape` (default `outerHalf 4, innerHalf 2` = 48 chunks, about 49k cells; enlarge as playtest groups grow). No pacing service; reserved gate slots stay unused.
+- Lighthouse oil target is a fixed tunable, `sliceLighthouseOil` (default 2,000), instead of being sized by pacing.
+
+**In the slice:** server core, Godot client, shared map, the full oil & supply-line system (lantern/pack, depots, camps, placed lanterns, withdraw limits and delivery withdrawals, fast travel with tank hand-back, darkness speed, caches, carts with narrow and coarse lever doors, hand-offs, supply requests, gate hubs), all collaboration tools (§9, including the text filter, reports, pings and quick-chat), gate discovery, the Core, the Kindling, ignition, the Wall of Names, the tutorial antechamber, and a **proper Ring 1 theme** (hedge & stone at dusk) plus the Core and Lighthouse.
+
+**Out of the slice:** rings ≥ 2, the pacing service (§10.2–10.6), settled rings (§8.9), depot lag (§18 Q13), other ring themes, Steam login and achievements (dev login only), behaviour detection (§12.3). Trust (§12.4) is simplified to account age plus confirmed contributions. The core anti-cheat guarantees (server-authoritative movement, fog invariant, validation, rate limits) **are** in.
+
+**Art sourcing:** CC0 assets only (e.g. Poly Haven, ambientCG, Kenney), recorded in `client/ASSETS.md` with source and licence; plus hand-built Godot geometry where needed (the Lighthouse).
+
+**Slice milestones** (the M-numbers show which full-game acceptance criteria apply)
+| # | Milestone | Scope |
+|---|---|---|
+| S1 | Server core | M2 in full (one ring), including the CPU budget and fog invariant |
+| S2 | Test bots | M2.5's bot clients and runner, used as the integration-test harness (the `f` sweep waits for multi-ring) |
+| S3 | Godot client | M3: connect, FP controller with prediction, chunk rendering, lantern light, darkness, touch collision (placeholder art) |
+| S4 | Shared map | M4 |
+| S5 | Oil & supply lines | M5, minus settled rings |
+| S6 | Collaboration tools | M6 |
+| S7 | Gates, Core & finale | Gate discovery → gate hub in the Core → the Kindling, ignition, Wall of Names, first-arrival plaque (M8.5 criteria, with bots on a small ring) |
+| S8 | Look, sound & onboarding | Ring 1 theme, Core & Lighthouse art, audio, tutorial antechamber, settings & accessibility basics, a hosted playtest server |
+
+Stop and report at the end of each S-milestone.
 
 ### M0 — Scaffold
 - Monorepo per §4.2 (Godot project at the root, `.gdignore` in every non-Godot folder), `docker-compose.yml` with Postgres, TS config, lint (eslint + prettier), vitest, CI (GitHub Actions) running tests on push. Godot project opens without importing anything from the TS folders.

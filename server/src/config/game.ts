@@ -118,6 +118,17 @@ export function defaultRingGenParams(ringIndex: number): RingGenParams {
   };
 }
 
+/** Vertical slice (spec §16.0): one ring + the Core, with every generation feature enabled. */
+export const slice = {
+  plannedRingCount: 1,
+  ringShape: { outerHalf: 4, innerHalf: 2 },
+  lighthouseOil: 2000,
+} as const;
+
+export function sliceRingGenParams(): RingGenParams {
+  return { ...defaultRingGenParams(1), narrowPermille: 150, platePermille: 80 };
+}
+
 /** Per-ring parameters that stay tunable live (spec §10.7). */
 export interface RingLiveParams {
   ambientRadiusCells: number;
