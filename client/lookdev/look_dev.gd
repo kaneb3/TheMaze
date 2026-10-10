@@ -1,10 +1,11 @@
 extends Node3D
 ## Look-dev scene: walk a real 12x12 patch of the vertical-slice Ring 1 in fog, to settle the
 ## art direction (spec §16.0) before the gameplay milestones. Open this scene and press F6.
-##   WASD walk · mouse look · Shift sprint · F lantern · F11 fullscreen · Esc frees the mouse
+##   WASD walk · mouse look · Shift sprint · F lantern · F11 fullscreen · Esc menu
 ## Look-dev only: the real client never builds maze geometry itself (spec §0.6).
 ##
 ## Optional: `-- --shot=<path.png>` saves a screenshot after a few seconds and quits.
+## `--menu[=options|leave]` opens the Esc menu at that page (for screenshots).
 
 const CELL := 4.0
 const WALL_HEIGHT := 7.0
@@ -48,6 +49,10 @@ func _ready() -> void:
 		_bake_floor_wall_distance()
 		_place_props(maze)
 	_spawn_player(maze)
+	var menu := PauseMenu.new()
+	add_child(menu)
+	if _args.has("menu") or "--menu" in OS.get_cmdline_user_args():
+		menu.open.call_deferred(_args.get("menu", "main"))
 
 
 func _unhandled_key_input(event: InputEvent) -> void:

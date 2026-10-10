@@ -1,7 +1,7 @@
 extends CharacterBody3D
 ## First-person controller with a hand-held lantern (look-dev version; the real one gets server
-## prediction/reconciliation in S3). WASD + mouse, Shift sprints, F toggles the lantern, Esc frees
-## the mouse.
+## prediction/reconciliation in S3). WASD + mouse, Shift sprints, F toggles the lantern. Esc opens
+## the PauseMenu, which takes the mouse and input until it closes; Settings.invert_y flips mouse look.
 ##
 ## Three layers, tested in client/tests/movement_test.gd (+ wall_slide_test.gd against real physics):
 ## - Locomotion: the gameplay integrator (fixed tick, server-mirrorable). Quick, crisp control.
@@ -214,18 +214,14 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if PauseMenu.is_open:
+		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		var rel: Vector2 = event.relative
-		rotate_y(-rel.x * mouse_sensitivity)
-		_head.rotate_x(-rel.y * mouse_sensitivity)
-		_head.rotation.x = clampf(_head.rotation.x, -1.45, 1.45)
-		_look_accum += rel
+		_look(event.relative)
 	elif event is InputEventMouseButton and event.pressed:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match event.physical_keycode:
-			KEY_ESCAPE:
-				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			KEY_F:
 				_light.visible = not _light.visible
 				for mi in _lantern.find_children("Flame*", "MeshInstance3D", true, false):
@@ -239,6 +235,9 @@ func _physics_process(delta: float) -> void:
 	if Input.is_physical_key_pressed(KEY_A): input.x -= 1.0
 	if Input.is_physical_key_pressed(KEY_D): input.x += 1.0
 	var sprint := Input.is_physical_key_pressed(KEY_SHIFT)
+	if PauseMenu.is_open:  # the world carries on, but you stand still while the menu is up
+		input = Vector2.ZERO
+		sprint = false
 	if _autopilot:
 		var a := _autopilot_step(delta)
 		input = a[0]
@@ -253,6 +252,16 @@ func _physics_process(delta: float) -> void:
 	_loco.set_velocity(velocity.x, velocity.z)  # walls absorb momentum
 	_walls = Locomotion.wall_normals(self)
 	_phys_cur = global_position
+
+
+## Turn the view by a mouse movement in pixels (+y = mouse moved towards you).
+func _look(rel: Vector2) -> void:
+	if Settings.invert_y:
+		rel.y = -rel.y
+	rotate_y(-rel.x * mouse_sensitivity)
+	_head.rotate_x(-rel.y * mouse_sensitivity)
+	_head.rotation.x = clampf(_head.rotation.x, -1.45, 1.45)
+	_look_accum += rel
 
 
 ## Call after teleporting the body (fast travel, server correction) so the camera doesn't streak.
