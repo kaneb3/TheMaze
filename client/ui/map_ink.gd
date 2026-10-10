@@ -9,7 +9,7 @@ extends Node2D
 ## "You are here": a trail of inked footprints with a small name ribbon (Marauder's Map style).
 
 const CANVAS := Vector2(1536.0, 1152.0)  # the 40 x 30 cm sheet's face
-const MAZE_RECT := Rect2(318.0, 214.0, 880.0, 880.0)  # the drawn maze area on the face
+const MAZE_RECT := Rect2(330.0, 96.0, 960.0, 960.0)  # the drawn maze area on the face
 const ZOOMS: Array[float] = [1.0, 1.75, 2.75]
 const FONT := "res://client/assets/fonts/IMFeENrm28P.ttf"
 const FONT_ITALIC := "res://client/assets/fonts/IMFeENit28P.ttf"
@@ -25,8 +25,6 @@ var footprints: Array = []  # [Vector2 cell-space position, angle, side(-1/1)] o
 var player_pos := Vector2.ZERO  # cell space (1 = one cell), +y = south
 var player_yaw := 0.0  # map angle the player faces (0 = north/up, clockwise)
 var to_centre := Vector2(0, -1)  # direction to the Lighthouse, for the compass
-var title := "The Labyrinth"
-var subtitle := "the First Ring"
 var zoom := 0
 var now := 0.0
 
@@ -58,10 +56,7 @@ func _draw() -> void:
 
 func _draw_face() -> void:
 	_border(Rect2(Vector2.ZERO, CANVAS), 44.0, 1.0)
-	_text(_caps, title, Vector2(CANVAS.x * 0.5, 112.0), 66, 0.92)
-	_text(_italic, subtitle, Vector2(CANVAS.x * 0.5, 154.0), 34, 0.8)
 	_compass(Vector2(165.0, 850.0), 92.0)
-	_legend(Vector2(1262.0, 330.0))
 	if reveal == null:
 		return
 	var cell := MAZE_RECT.size.x / maxf(reveal.width, reveal.height) * ZOOMS[zoom]
@@ -151,7 +146,7 @@ func _footprints(origin: Vector2, cell: float) -> void:
 	_foot(here - side, player_yaw, foot, 0.95, -1)
 	_foot(here + side, player_yaw, foot, 0.95, 1)
 	# name ribbon, Marauder's style, up and to the right of the feet
-	# (below the feet when they stand near the top edge, clear of the title)
+	# (below the feet when they stand near the top edge, clear of the border)
 	var below := here.y - MAZE_RECT.position.y < 70.0
 	var at := here + Vector2(foot * 1.0, foot * 2.2 if below else -foot * 1.5)
 	var label := "You"
@@ -189,7 +184,7 @@ func _ink_line_free(a: Vector2, b: Vector2, w: float, alpha: float) -> void:
 
 
 # ---------------------------------------------------------------------------------------------
-# frame, lettering, compass, legend
+# frame, lettering, compass
 
 func _border(r: Rect2, inset: float, alpha: float) -> void:
 	var outer := r.grow(-inset)
@@ -266,20 +261,3 @@ func _lighthouse(base: Vector2, h: float) -> void:
 		var half := lerpf(bw, tw, k)
 		draw_line(base + Vector2(-half, y), base + Vector2(half, y), col, 1.6, true)
 
-
-func _legend(at: Vector2) -> void:
-	var size := 26
-	var col := Color(INK, 0.85)
-	_text(_caps, "Key", at + Vector2(80.0, 0.0), 32, 0.9)
-	var y := at.y + 52.0
-	# walked: an ink wall
-	_ink_line_any(Vector2(at.x, y - 8.0), Vector2(at.x + 46.0, y - 8.0), 4.5, 0.85, 1.0)
-	draw_string(_italic, Vector2(at.x + 60.0, y), "walked", HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
-	y += 50.0
-	draw_rect(Rect2(at.x + 4.0, y - 26.0, 38.0, 26.0), Color(GOLD, 0.6))
-	draw_rect(Rect2(at.x - 2.0, y - 32.0, 50.0, 38.0), Color(GOLD, 0.2))
-	draw_string(_italic, Vector2(at.x + 60.0, y), "lantern-lit", HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
-	y += 50.0
-	_foot(Vector2(at.x + 14.0, y - 10.0), 0.0, 22.0, 0.85, -1)
-	_foot(Vector2(at.x + 30.0, y - 14.0), 0.0, 22.0, 0.85, 1)
-	draw_string(_italic, Vector2(at.x + 60.0, y), "your steps", HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
