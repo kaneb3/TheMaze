@@ -1,5 +1,9 @@
 # Network protocol reference
 
+> **Parked (2026-10-10):** this protocol was for the server-wide MMO. Co-op networking is an open
+> question ([`docs/vision.md`](../docs/vision.md)). The coordinate and wall encoding below still
+> describe the maze generator's output.
+
 WebSocket, JSON at MVP (msgpack later behind a flag). Every message is `{ "t": "<type>", ...payload }`
 and is validated with zod on the server; unknown or invalid messages are dropped and counted.
 

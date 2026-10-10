@@ -4,6 +4,18 @@
 > **One-liner:** A first-person, 3D, massively collaborative multiplayer maze so enormous it takes the whole community *months* to reach the centre. The shared map slowly lights up as players haul oil deeper into the dark.
 > **Spec version:** 2 (2026-10-07)
 
+> [!IMPORTANT]
+> **Premise superseded (2026-10-10).** The game is now a **small-group co-op** maze (1–4 friends,
+> spooky Goblet-of-Fire night maze, a creature to fight or avoid, teamwork puzzles), **not** a
+> server-wide MMO. The current design is [`docs/vision.md`](docs/vision.md); the decision is
+> [ADR 0002](docs/adr/0002-small-group-co-op.md). Where this spec disagrees with the vision, the vision wins.
+>
+> **Still the reference:** §5 maze generation, §7 movement feel, §16.0 art direction & production, and
+> the twin-plate doors / levers (§5.6, §9.11, §9.13) as the seed of teamwork puzzles.
+> **Dropped:** §8 oil & supply lines. **Parked (MMO-only):** §4 server architecture, §6.5 interest
+> management, §9's community tools, §10 pacing, §12 anti-cheat, §13 protocol, §14 persistence, §15's
+> server tunables, §16 milestones M2 onwards and the S1–S8 slice. The rest is kept for history.
+
 ### v2 changes (summary)
 | Area | Change | Sections |
 |---|---|---|
@@ -25,8 +37,9 @@
 
 ## 0. Instructions for Claude Code (read first)
 
+0. **Read [`docs/vision.md`](docs/vision.md) first.** Since 2026-10-10 it defines the game (small-group co-op); this spec is only a reference for the sections the banner above lists. Rules 3–6 below were written for the MMO and apply only where the vision still calls for them.
 1. **Read this entire document before writing any code.** Design decisions are deliberate, and several "obvious" features were explicitly rejected (see §2.2).
-2. **Work milestone by milestone** (§16). M0 and M1 are done; the current plan is the **vertical slice** (§16.0, S1–S8). Stop at the end of each milestone and summarise what was built, what was tested, and any questions before continuing.
+2. **Work prototype by prototype** (vision doc, "Plan": P1–P4). M0 and M1 are done; the old vertical slice (§16.0, S1–S8) is replaced. Stop at the end of each prototype and summarise what was built, what was tested, and any questions before continuing.
 3. **Every gameplay number is a tunable.** Put all of them in a single config module (`server/src/config/game.ts`) with the defaults from §15. Never hard-code gameplay numbers elsewhere.
 4. **The server is the authority on everything.** The client is a renderer and an input device. If you're unsure where logic belongs, it belongs on the server.
 5. **Determinism is sacred.** Maze generation must produce identical output for the same seed on every machine, forever. Use the specified hash/PRNG (§5.2) and lock it with golden tests.
@@ -808,7 +821,7 @@ Use migrations (e.g. `node-pg-migrate` or plain SQL files with a tiny runner).
 
 ## 16. Milestones & Acceptance Criteria
 
-### 16.0 Vertical slice (current plan, decided 2026-10-09)
+### 16.0 Vertical slice (replaced 2026-10-10 by the prototypes P1–P4 in [`docs/vision.md`](docs/vision.md); the art direction and art production below still apply)
 **Goal:** answer "is this fun together?" with **every game feature** in place, but in **one ring plus the Core** instead of the full expanse. Milestones M0–M1 are done. The slice then runs S1–S8 below. The full-scale milestones (M7 multi-ring pacing, M8 Steam & anti-cheat, the rest of M9, M10) follow the slice.
 
 **World for the slice**
