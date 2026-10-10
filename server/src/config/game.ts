@@ -30,6 +30,7 @@ export const game = {
   moveSubstepHz: 60,
   cartSpeedMultiplier: 0.6,
   darkSpeedMultiplier: 0.5,
+  mapWalkMultiplier: 0.55, // walking pace while the map is held up to read (no sprint)
   playerRadiusM: 0.4,
 
   // Light

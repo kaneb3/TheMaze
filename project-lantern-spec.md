@@ -573,15 +573,16 @@ project.godot   (repo root = res://)
 - In-world decals: chalk, footprint wear, markers (pennants), notes (glowing glyph), signposts, plaques.
 
 ### 11.3 First-person controller
-- CharacterBody3D, mouse look, WASD. Actions: `E` interact, `F` lantern toggle, `M` raise map, `C` chalk radial menu, `Q` throw flare, `T` toggle thread, `Tab` camp/board panel when at a camp.
+- CharacterBody3D, mouse look, WASD. Actions: `E` interact (including the camp/board panel at a camp), `F` lantern toggle, `Tab` raise/put away the map (`Esc` also puts it away), `C` chalk radial menu, `Q` throw flare, `T` toggle thread. *(Changed 2026-10-09: the map moved from `M` to `Tab`, the camp panel to `E`.)*
 - Client-side prediction with reconciliation against server corrections (§7). Smooth small corrections and snap large ones.
 
 ### 11.4 Map screen (the star)
-- Raised as a **hand-held parchment map** (diegetic). Gameplay continues behind it, so you're vulnerable to getting lost, not to enemies (there are none).
+- Raised as a **hand-held parchment map** (diegetic). Gameplay continues behind it, so you're vulnerable to getting lost, not to enemies (there are none). You can walk while reading, slowly (`mapWalkMultiplier`, 0.55, no sprint).
+- **Form (decided 2026-10-09):** an old parchment in the spirit of the Marauder's Map, once folded in 3 × 2 panels (the creases show), held in the right hand while the left keeps the lantern, which lights the sheet (lantern off → hard to read). Opening animation (changed 2026-10-10): the sheet comes out already open, its old fold creases still showing; as it pops up (~0.4 s) it moves like paper through air (its creases driven live by the hand's motion: blown back as it is whipped up, one soft follow-through, then still). Readability first: once it is up, walking and turning only stir its top-left corner by a few millimetres, and the ink wells up from where you stand and spreads over it. Closing drains the ink and drops it away. Modelled and animated in Blender (`art/scripts/fp_map.py`).
 - Rendered with per-chunk **ImageTextures** (1 px per cell edge at detail zoom). Explored = ink lines; lit = warm glow with soft bloom; unexplored = blank parchment.
 - **Zoom levels:** detail (cells), district (chunks with names), ring overview (per-chunk explored and lit fractions from map summaries), world (all rings as nested schematic bands, showing overall glow progress).
 - Overlays per §9.1. Tap or click a marker, camp, or claim for details. Place markers from the map.
-- "You are here" arrow plus your thread.
+- "You are here" as inked footprints (a short trail of your last steps, with a name ribbon) plus your thread.
 
 ### 11.5 HUD (minimal)
 Lantern tank gauge, pack oil, cart status, interact prompts, current district name, compass ring pointing toward the centre.

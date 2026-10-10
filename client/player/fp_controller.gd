@@ -1,6 +1,7 @@
 extends CharacterBody3D
 ## First-person controller with a hand-held lantern (look-dev version; the real one gets server
-## prediction/reconciliation in S3). WASD + mouse, Shift sprints, F toggles the lantern. Esc opens
+## prediction/reconciliation in S3). WASD + mouse, Shift sprints, F toggles the lantern, Tab raises
+## the map (MapScreen, hung off the camera; reading slows the walk and lifts the lantern). Esc opens
 ## the PauseMenu, which takes the mouse and input until it closes; Settings.invert_y flips mouse look.
 ##
 ## Three layers, tested in client/tests/movement_test.gd (+ wall_slide_test.gd against real physics):
@@ -43,6 +44,7 @@ var _hoop: Node3D  # hinges about its bar in the fist
 var _lantern: Node3D
 var _arm: Node3D
 var _light: OmniLight3D
+var map: MapScreen  # the hand-held map (Tab), held up in front of the camera
 
 var _time := 0.0
 var _look_accum := Vector2.ZERO  # mouse pixels since the last frame
@@ -100,6 +102,10 @@ func _ready() -> void:
 	_hand.position = HAND_POS
 	_camera.add_child(_hand)
 	_motion = LanternMotion.new(HAND_POS)
+	map = MapScreen.new()
+	map.name = "Map"
+	map.body = self
+	_camera.add_child(map)
 
 	_arm = Node3D.new()
 	_arm.name = "Arm"
@@ -169,6 +175,8 @@ func _ready() -> void:
 		var mi := node as MeshInstance3D
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.layers |= VIEWMODEL_LAYER
+	for node in _arm.find_children("*", "MeshInstance3D", true, false):
+		ViewmodelLeather.apply(node)  # matte, lantern-safe leather, matching the hand that holds the map
 
 	# Viewmodel fill: a soft warm light that touches only the arm (standard first-person practice) so
 	# the glove's leather, seams and knuckles stay readable without brightening the world.
@@ -243,7 +251,8 @@ func _physics_process(delta: float) -> void:
 		input = a[0]
 		sprint = a[1]
 	_phys_prev = global_position
-	_loco.step(delta, input, rotation.y, sprint, 1.0, _walls)
+	var reading := map.lift()  # reading the map: a slow walk, no sprint
+	_loco.step(delta, input, rotation.y, sprint and reading == 0.0, lerpf(1.0, MapScreen.WALK_MULT, reading), _walls)
 	velocity.x = _loco.vx
 	velocity.z = _loco.vz
 	if not is_on_floor():
@@ -292,7 +301,7 @@ func _process(delta: float) -> void:
 		_motion.step(SUBSTEP, velocity, _camera.global_basis, global_rotation.y, look_rate,
 			_view.stride_phase, _view.gait, _view.amount)
 
-	_hand.position = HAND_POS + _motion.hand_offset
+	_hand.position = HAND_POS + _motion.hand_offset + MapScreen.LANTERN_LIFT * map.lift()  # lantern up to light the map
 	_hand.rotation = _motion.hand_rotation
 	var yaw_basis := Basis(Vector3.UP, global_rotation.y)
 	_rig.global_basis = yaw_basis * Basis(Vector3.UP, _motion.twist) * Basis.from_euler(Vector3(_motion.swing.x, 0.0, _motion.swing.y))

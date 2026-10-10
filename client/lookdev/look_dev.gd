@@ -1,11 +1,13 @@
 extends Node3D
 ## Look-dev scene: walk a real 12x12 patch of the vertical-slice Ring 1 in fog, to settle the
 ## art direction (spec §16.0) before the gameplay milestones. Open this scene and press F6.
-##   WASD walk · mouse look · Shift sprint · F lantern · F11 fullscreen · Esc menu
+##   WASD walk · mouse look · Shift sprint · F lantern · Tab map · F11 fullscreen · Esc menu
 ## Look-dev only: the real client never builds maze geometry itself (spec §0.6).
 ##
 ## Optional: `-- --shot=<path.png>` saves a screenshot after a few seconds and quits.
 ## `--menu[=options|leave]` opens the Esc menu at that page (for screenshots).
+## `--map` opens the map (Tab), `--map_zoom=1|2` zooms it, `--mapall` pre-reveals the whole patch,
+## `--map_close=<s>` puts it away at that time.
 
 const CELL := 4.0
 const WALL_HEIGHT := 7.0
@@ -27,6 +29,10 @@ var _time := 0.0
 var _shot_path := ""
 var _shot_frames := 0
 var _args := {}  # look-dev camera overrides: --cell=x,y --yaw=deg --pitch=deg --offset=dx,dz
+var _light_sources: Array = []  # [cell, radius]: the posts' lanterns and the camp (gold on the map)
+var _map_reveal: MapReveal
+var _player: CharacterBody3D
+var _reveal_key := Vector3i(-1, -1, -1)  # player cell + lantern state at the last reveal
 
 
 func _ready() -> void:
@@ -71,6 +77,7 @@ func _process(delta: float) -> void:
 			_fps_t = 0.0
 			print("fps ", Engine.get_frames_per_second(), "  draws ", RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME), "  prims ", RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
 	_time += delta
+	_update_map()
 	for f in _flickers:
 		var light: OmniLight3D = f[0]
 		light.light_energy = f[1] * (1.0 + 0.10 * _noise.get_noise_1d(_time * 7.0 + f[2]) + 0.04 * _noise.get_noise_1d(_time * 23.0 + f[2]))
@@ -466,6 +473,7 @@ func _place_props(maze: Dictionary) -> void:
 			add_child(camp)
 			_fix_materials(camp)
 			_add_light(camp, CAMP_FIRE, Color(0.7, 0.82, 0.95), 2.2, 9.0, 0.8)
+			_light_sources.append([c, 5])  # campLightRadiusCells
 			LanternLighting.chill(camp)
 			break
 
@@ -493,6 +501,7 @@ func _place_props(maze: Dictionary) -> void:
 		_fix_materials(lantern)
 		var light := _add_light(post, lantern.position + Vector3(0.0, LANTERN_FLAME, 0.0), LanternLighting.COLD_LIGHT, 1.3, 8.0, 1.2)
 		LanternLighting.rig(lantern, light, Vector3(0.0, LANTERN_FLAME, 0.0))
+		_light_sources.append([c, 4])  # placedLanternRadius
 
 
 func _add_light(parent: Node3D, pos: Vector3, color: Color, energy: float, rng: float, fog: float) -> OmniLight3D:
@@ -536,3 +545,55 @@ func _spawn_player(maze: Dictionary) -> void:
 	if _args.has("pitch"):
 		player.get_node("Head").rotation.x = deg_to_rad(float(_args["pitch"]))
 	_flickers.append([player.get_node("Head/Camera3D/Hand/LanternRig/LanternLight"), player.lantern_energy, 3.0])
+	_setup_map(maze, player)
+
+
+# ---------------------------------------------------------------------------------------------
+# map: until the server exists (S1/S4) the map is filled from the player's own lantern, by the
+# spec's reveal rules (§6.1-6.2, MapReveal): lantern radius 6 with line of sight, Ring 1's ambient
+# radius 2 without it, and cells lit by a post lantern or the camp that are in sight (gold).
+
+const LANTERN_RADIUS := 6  # lanternRadiusCells
+const AMBIENT_RADIUS := 2  # ambientRadiusCells (Ring 1)
+const MAX_LIGHT_RADIUS := 12  # maxLightRadiusCells
+
+
+func _setup_map(maze: Dictionary, player: CharacterBody3D) -> void:
+	_player = player
+	_map_reveal = MapReveal.new(_w, _h, _walls)
+	# the patch sits at maze.origin (ring cells) in a ring centred on (0, 0): the compass points there
+	var centre := -(Vector2(maze.origin[0], maze.origin[1]) + Vector2(_w, _h) * 0.5)
+	player.map.configure(_map_reveal, Vector3.ZERO, CELL, centre)
+	var lit: Array[Vector2i] = []
+	for src in _light_sources:
+		lit.append_array(_map_reveal.visible_from(src[0], src[1]))
+	player.map.set_lit(lit)
+	if _args.has("mapall") or "--mapall" in OS.get_cmdline_user_args():
+		for y in _h:
+			for x in _w:
+				player.map.add_revealed(_map_reveal.visible_from(Vector2i(x, y), AMBIENT_RADIUS))
+	if _args.has("map_zoom"):
+		player.map.ink.zoom = int(_args["map_zoom"])
+	if "--map" in OS.get_cmdline_user_args():
+		player.map.open.call_deferred()
+
+
+func _update_map() -> void:
+	if _player == null:
+		return
+	if _args.has("map_close") and _time >= float(_args["map_close"]) and _player.map.is_reading():
+		_player.map.close()  # look-dev: --map_close=<s> puts the map away then (closing screenshots)
+		_args.erase("map_close")
+	var p := _player.global_position / CELL
+	var cell := Vector2i(floori(p.x), floori(p.z))
+	var lantern_on: bool = _player.get_node("Head/Camera3D/Hand/LanternRig/LanternLight").visible
+	var key := Vector3i(cell.x, cell.y, 1 if lantern_on else 0)
+	if key == _reveal_key:
+		return
+	_reveal_key = key
+	var cells := _map_reveal.visible_from(cell, LANTERN_RADIUS if lantern_on else AMBIENT_RADIUS)
+	# placed lights reveal what they light, wherever you can see it from
+	for c in _map_reveal.visible_from(cell, MAX_LIGHT_RADIUS):
+		if _player.map.ink.lit.has(c):
+			cells.append(c)
+	_player.map.add_revealed(cells)
